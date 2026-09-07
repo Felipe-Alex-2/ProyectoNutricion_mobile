@@ -1,4 +1,4 @@
-package com.auth.app.mobile
+package com.nutrisalud.app.mobile
 
 import io.flutter.embedding.android.FlutterActivity
 

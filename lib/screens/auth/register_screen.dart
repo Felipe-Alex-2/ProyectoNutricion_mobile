@@ -77,23 +77,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     // Brand Icon
                     Center(
                       child: Container(
-                        width: 68,
-                        height: 68,
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryGreen,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(22),
                           boxShadow: [
                             BoxShadow(
-                              color: AppTheme.primaryGreen.withValues(alpha: 0.35),
-                              blurRadius: 16,
+                              color: AppTheme.primaryGreen.withValues(alpha: 0.25),
+                              blurRadius: 18,
                               offset: const Offset(0, 8),
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.eco_rounded,
-                          color: Colors.white,
-                          size: 36,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            width: 76,
+                            height: 76,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                     ),
