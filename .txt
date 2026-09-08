@@ -3,4 +3,5 @@
 //soy random
 //lapapa
 //la cebolla
-//la patata
+//la papaya
+//la potato
