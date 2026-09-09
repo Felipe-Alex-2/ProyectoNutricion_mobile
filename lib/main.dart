@@ -11,6 +11,7 @@ import 'services/theme_service.dart';
 
 import 'services/activity_log_service.dart';
 import 'services/patient_service.dart';
+import 'services/anamnesis_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,7 @@ void main() {
   final themeService = ThemeService();
   final patientService = PatientService(apiService);
   final activityLogService = ActivityLogService(apiService);
+  final anamnesisService = AnamnesisService(apiService);
 
   runApp(
     MultiProvider(
@@ -31,6 +33,7 @@ void main() {
         ChangeNotifierProvider<ThemeService>.value(value: themeService),
         ChangeNotifierProvider<PatientService>.value(value: patientService),
         ChangeNotifierProvider<ActivityLogService>.value(value: activityLogService),
+        ChangeNotifierProvider<AnamnesisService>.value(value: anamnesisService),
       ],
       child: const MyApp(),
     ),

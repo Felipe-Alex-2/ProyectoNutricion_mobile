@@ -6,6 +6,7 @@ import '../../services/activity_log_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/patient_service.dart';
 import '../../services/theme_service.dart';
+import '../anamnesis/anamnesis_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -393,6 +394,92 @@ class _HomeScreenState extends State<HomeScreen> {
                         text: '. Aquí puedes consultar la información y estado actual de tu cuenta.',
                       ),
                     ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Ficha de Salud / Anamnesis Card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark
+                    ? [const Color(0xFF1B382B), const Color(0xFF14241D)]
+                    : [const Color(0xFFE8F5E9), const Color(0xFFC8E6C9)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: primaryGreen.withValues(alpha: 0.3),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: primaryGreen,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.assignment_turned_in_rounded, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mi Ficha de Salud (Anamnesis)',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: textPrimary,
+                            ),
+                          ),
+                          Text(
+                            'Completa tus antecedentes y hábitos para tu especialista',
+                            style: TextStyle(fontSize: 12, color: textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryGreen,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AnamnesisScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.edit_note_rounded, color: Colors.white),
+                    label: const Text(
+                      'Llenar / Actualizar Anamnesis',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
                   ),
                 ),
               ],
