@@ -22,8 +22,10 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     'Mariscos',
     'Huevo',
     'Soya',
+    'Otros',
   ];
   final Set<String> _selectedAllergies = {'Ninguna'};
+  final TextEditingController _otherAllergiesController = TextEditingController();
 
   final List<String> _pathologiesList = [
     'Ninguna',
@@ -32,16 +34,20 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     'Hipotiroidismo',
     'Gastritis / Reflujo',
     'Colesterol alto',
+    'Otros',
   ];
   final Set<String> _selectedPathologies = {'Ninguna'};
+  final TextEditingController _otherPathologiesController = TextEditingController();
 
   final List<String> _goalsList = [
     'Pérdida de grasa',
     'Aumento de masa muscular',
     'Salud y control de peso',
     'Rendimiento deportivo',
+    'Otro',
   ];
   String _selectedGoal = 'Pérdida de grasa';
+  final TextEditingController _otherGoalController = TextEditingController();
 
   final List<String> _activityList = [
     'Sedentario',
@@ -83,7 +89,6 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
         _waterLiters = data.waterIntakeLiters;
         _sleepHours = data.sleepHours;
         _coffeeCups = data.coffeeCups;
-        _selectedGoal = data.goal;
         _selectedActivity = data.physicalActivity;
         _selectedAlcohol = data.alcoholFrequency;
         _selectedSmoke = data.smokeHabit;
@@ -92,14 +97,47 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
         _foodPreferencesController.text = data.foodPreferences ?? '';
         _digestiveController.text = data.digestiveSymptoms ?? '';
 
+        if (data.goal.isNotEmpty) {
+          if (_goalsList.sublist(0, 4).contains(data.goal)) {
+            _selectedGoal = data.goal;
+          } else {
+            _selectedGoal = 'Otro';
+            _otherGoalController.text = data.goal;
+          }
+        }
+
         if (data.allergies != null && data.allergies!.isNotEmpty) {
           _selectedAllergies.clear();
-          _selectedAllergies.addAll(data.allergies!.split(', ').map((e) => e.trim()));
+          final items = data.allergies!.split(', ').map((e) => e.trim());
+          for (final item in items) {
+            if (item.startsWith('Otro:')) {
+              _selectedAllergies.add('Otros');
+              _otherAllergiesController.text = item.substring(5).trim();
+            } else if (_allergiesList.contains(item)) {
+              _selectedAllergies.add(item);
+            } else {
+              _selectedAllergies.add('Otros');
+              _otherAllergiesController.text = item;
+            }
+          }
+          if (_selectedAllergies.isEmpty) _selectedAllergies.add('Ninguna');
         }
 
         if (data.pathologies != null && data.pathologies!.isNotEmpty) {
           _selectedPathologies.clear();
-          _selectedPathologies.addAll(data.pathologies!.split(', ').map((e) => e.trim()));
+          final items = data.pathologies!.split(', ').map((e) => e.trim());
+          for (final item in items) {
+            if (item.startsWith('Otro:')) {
+              _selectedPathologies.add('Otros');
+              _otherPathologiesController.text = item.substring(5).trim();
+            } else if (_pathologiesList.contains(item)) {
+              _selectedPathologies.add(item);
+            } else {
+              _selectedPathologies.add('Otros');
+              _otherPathologiesController.text = item;
+            }
+          }
+          if (_selectedPathologies.isEmpty) _selectedPathologies.add('Ninguna');
         }
       });
     }
@@ -107,6 +145,9 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
 
   @override
   void dispose() {
+    _otherAllergiesController.dispose();
+    _otherPathologiesController.dispose();
+    _otherGoalController.dispose();
     _medicationsController.dispose();
     _foodPreferencesController.dispose();
     _digestiveController.dispose();
@@ -116,9 +157,27 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
   Future<void> _saveAnamnesis() async {
     final service = context.read<AnamnesisService>();
 
+    final pathologies = _selectedPathologies.map((p) {
+      if (p == 'Otros' && _otherPathologiesController.text.trim().isNotEmpty) {
+        return 'Otro: ${_otherPathologiesController.text.trim()}';
+      }
+      return p;
+    }).toList();
+
+    final allergies = _selectedAllergies.map((a) {
+      if (a == 'Otros' && _otherAllergiesController.text.trim().isNotEmpty) {
+        return 'Otro: ${_otherAllergiesController.text.trim()}';
+      }
+      return a;
+    }).toList();
+
+    final goal = (_selectedGoal == 'Otro' && _otherGoalController.text.trim().isNotEmpty)
+        ? _otherGoalController.text.trim()
+        : _selectedGoal;
+
     final model = PatientAnamnesisModel(
-      pathologies: _selectedPathologies.join(', '),
-      allergies: _selectedAllergies.join(', '),
+      pathologies: pathologies.join(', '),
+      allergies: allergies.join(', '),
       medications: _medicationsController.text.trim(),
       waterIntakeLiters: _waterLiters,
       alcoholFrequency: _selectedAlcohol,
@@ -128,7 +187,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
       physicalActivity: _selectedActivity,
       digestiveSymptoms: _digestiveController.text.trim(),
       foodPreferences: _foodPreferencesController.text.trim(),
-      goal: _selectedGoal,
+      goal: goal,
     );
 
     final ok = await service.saveMyAnamnesis(model);
@@ -137,7 +196,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('¡Ficha de salud guardada exitosamente! Tu nutricionista ya puede verla.'),
+          content: Text('¡Ficha de salud guardada exitosamente! Tu especialista ya puede verla.'),
           backgroundColor: AppTheme.primaryGreen,
         ),
       );
@@ -223,7 +282,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
               const SizedBox(height: 24),
 
               // 1. Objetivo Principal
-              _buildSectionTitle('🎯 Objetivo Principal', textPrimary),
+              _buildSectionHeader(Icons.track_changes_rounded, 'Objetivo Principal', textPrimary),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -244,11 +303,24 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                   );
                 }).toList(),
               ),
+              if (_selectedGoal == 'Otro') ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _otherGoalController,
+                  decoration: InputDecoration(
+                    hintText: 'Escribe aquí tu objetivo personalizado...',
+                    filled: true,
+                    fillColor: cardBg,
+                    prefixIcon: const Icon(Icons.edit_outlined, size: 18),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 24),
 
               // 2. Alergias e Intolerancias
-              _buildSectionTitle('⚠️ Alergias e Intolerancias', textPrimary),
+              _buildSectionHeader(Icons.warning_amber_rounded, 'Alergias e Intolerancias', textPrimary, iconColor: Colors.redAccent),
               const SizedBox(height: 4),
               Text('Selecciona todas las que apliquen', style: TextStyle(fontSize: 12, color: textSecondary)),
               const SizedBox(height: 8),
@@ -285,11 +357,24 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                   );
                 }).toList(),
               ),
+              if (_selectedAllergies.contains('Otros')) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _otherAllergiesController,
+                  decoration: InputDecoration(
+                    hintText: 'Escribe aquí qué otras alergias tienes...',
+                    filled: true,
+                    fillColor: cardBg,
+                    prefixIcon: const Icon(Icons.edit_outlined, size: 18),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 24),
 
               // 3. Antecedentes Médicos
-              _buildSectionTitle('🩺 Antecedentes de Salud', textPrimary),
+              _buildSectionHeader(Icons.health_and_safety_outlined, 'Antecedentes de Salud', textPrimary),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -324,11 +409,25 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                   );
                 }).toList(),
               ),
+              if (_selectedPathologies.contains('Otros')) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _otherPathologiesController,
+                  decoration: InputDecoration(
+                    hintText: 'Escribe aquí qué otra patología o antecedente tienes...',
+                    filled: true,
+                    fillColor: cardBg,
+                    prefixIcon: const Icon(Icons.edit_outlined, size: 18),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 24),
 
               // 4. Ingesta de Agua
-              _buildSectionTitle('💧 Ingesta de Agua Diaria', textPrimary),
+              _buildSectionHeader(Icons.water_drop_outlined, 'Ingesta de Agua Diaria', textPrimary, iconColor: Colors.blueAccent),
+              const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -350,7 +449,8 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
               const SizedBox(height: 16),
 
               // 5. Horas de Sueño
-              _buildSectionTitle('😴 Horas de Sueño Promedio', textPrimary),
+              _buildSectionHeader(Icons.bedtime_outlined, 'Horas de Sueño Promedio', textPrimary, iconColor: Colors.indigoAccent),
+              const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -372,7 +472,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
               const SizedBox(height: 20),
 
               // 6. Actividad Física
-              _buildSectionTitle('🏃 Nivel de Actividad Física', textPrimary),
+              _buildSectionHeader(Icons.fitness_center_rounded, 'Nivel de Actividad Física', textPrimary),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -397,7 +497,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
               const SizedBox(height: 20),
 
               // 7. Café, Alcohol y Tabaco
-              _buildSectionTitle('☕ Hábitos (Café, Alcohol, Tabaco)', textPrimary),
+              _buildSectionHeader(Icons.local_cafe_outlined, 'Hábitos (Café, Alcohol, Tabaco)', textPrimary, iconColor: AppTheme.accentOrange),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -454,7 +554,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
               const SizedBox(height: 24),
 
               // 8. Campos de texto complementarios
-              _buildSectionTitle('💊 Medicamentos o Suplementos', textPrimary),
+              _buildSectionHeader(Icons.medication_outlined, 'Medicamentos o Suplementos', textPrimary),
               const SizedBox(height: 6),
               TextField(
                 controller: _medicationsController,
@@ -468,7 +568,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
 
               const SizedBox(height: 16),
 
-              _buildSectionTitle('🍽️ Preferencias y Aversiones', textPrimary),
+              _buildSectionHeader(Icons.restaurant_menu_rounded, 'Preferencias y Aversiones', textPrimary),
               const SizedBox(height: 6),
               TextField(
                 controller: _foodPreferencesController,
@@ -483,7 +583,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
 
               const SizedBox(height: 16),
 
-              _buildSectionTitle('🩺 Digestión / Síntomas', textPrimary),
+              _buildSectionHeader(Icons.healing_rounded, 'Digestión y Síntomas', textPrimary),
               const SizedBox(height: 6),
               TextField(
                 controller: _digestiveController,
@@ -523,14 +623,20 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title, Color textColor) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.bold,
-        color: textColor,
-      ),
+  Widget _buildSectionHeader(IconData icon, String title, Color textColor, {Color? iconColor}) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: iconColor ?? AppTheme.primaryGreen),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+      ],
     );
   }
 }

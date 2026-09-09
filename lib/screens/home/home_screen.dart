@@ -6,6 +6,8 @@ import '../../services/activity_log_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/patient_service.dart';
 import '../../services/theme_service.dart';
+import '../../services/recipe_service.dart';
+import '../../models/recipe_model.dart';
 import '../anamnesis/anamnesis_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _codeController = TextEditingController();
   bool _isClaiming = false;
   String? _claimError;
+  String _selectedPlanCategory = 'Todas';
 
   @override
   void initState() {
@@ -27,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PatientService>().fetchMyNutritionist();
       context.read<ActivityLogService>().fetchLogs();
+      context.read<RecipeService>().fetchMyPlanRecipes();
       context.read<ActivityLogService>().recordLog(
         action: 'INICIO_SESION',
         description: 'Inicio de sesión en aplicación móvil',
@@ -119,6 +123,9 @@ class _HomeScreenState extends State<HomeScreen> {
             });
             if (idx == 2) {
               context.read<ActivityLogService>().fetchLogs();
+            }
+            if (idx == 3) {
+              context.read<RecipeService>().fetchMyPlanRecipes();
             }
           },
           backgroundColor: Colors.transparent,
@@ -1450,7 +1457,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 4. PLAN VIEW ("Próximamente" as requested)
+  // 4. PLAN VIEW (Recetas asignadas por el Nutricionista con macros y fotos)
   Widget _buildPlanView({
     required PatientService patientService,
     required bool isDark,
@@ -1460,100 +1467,481 @@ class _HomeScreenState extends State<HomeScreen> {
     required Color textSecondary,
   }) {
     final nutri = patientService.linkedNutritionist;
+    final recipeService = context.watch<RecipeService>();
+    final allRecipes = recipeService.myPlanRecipes;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+    final categories = ['Todas', 'Desayuno', 'Almuerzo', 'Cena', 'Snack'];
+    final filteredRecipes = _selectedPlanCategory == 'Todas'
+        ? allRecipes
+        : allRecipes.where((r) => r.category.toLowerCase() == _selectedPlanCategory.toLowerCase()).toList();
+
+    return RefreshIndicator(
+      color: primaryGreen,
+      onRefresh: () => context.read<RecipeService>().fetchMyPlanRecipes(),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mi Plan Alimenticio',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Recetas saludables y macronutrientes asignados',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: Icon(Icons.refresh_rounded, color: primaryGreen),
+                  tooltip: 'Actualizar recetas',
+                  onPressed: () => context.read<RecipeService>().fetchMyPlanRecipes(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Filtros de Categoría
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: categories.map((cat) {
+                  final isSel = _selectedPlanCategory == cat;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: ChoiceChip(
+                      label: Text(cat),
+                      selected: isSel,
+                      selectedColor: primaryGreen,
+                      labelStyle: TextStyle(
+                        color: isSel ? Colors.white : textPrimary,
+                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 12,
+                      ),
+                      onSelected: (val) {
+                        if (val) setState(() => _selectedPlanCategory = cat);
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            if (recipeService.isLoading)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40.0),
+                  child: CircularProgressIndicator(color: primaryGreen),
+                ),
+              )
+            else if (allRecipes.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 36.0),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark ? Colors.white12 : const Color(0x0A000000),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentOrange.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.restaurant_menu_rounded,
+                        color: AppTheme.accentOrange,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Sin Recetas Asignadas Aún',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      nutri != null
+                          ? 'Tu especialista (${nutri.nutritionistName}) aún no ha asignado recetas a tu plan. En cuanto te asigne una receta desde la plataforma web, aparecerá aquí con sus ingredientes e instrucciones.'
+                          : 'Vincula a tu especialista en la sección "Nutri" para que pueda programar y asignarte tus recetas personalizadas.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (filteredRecipes.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40.0),
+                child: Center(
+                  child: Text(
+                    'No tienes recetas en la categoría "$_selectedPlanCategory".',
+                    style: TextStyle(color: textSecondary, fontSize: 14),
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: filteredRecipes.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 16),
+                itemBuilder: (context, index) {
+                  final recipe = filteredRecipes[index];
+                  return _buildRecipeCard(
+                    recipe: recipe,
+                    isDark: isDark,
+                    cardBg: cardBg,
+                    primaryGreen: primaryGreen,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                  );
+                },
+              ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecipeCard({
+    required RecipeModel recipe,
+    required bool isDark,
+    required Color cardBg,
+    required Color primaryGreen,
+    required Color textPrimary,
+    required Color textSecondary,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white12 : const Color(0x0A000000),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Plan Alimenticio',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Menús, porciones y guías nutricionales',
-            style: TextStyle(
-              fontSize: 13,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 40),
-
-          // "Próximamente" Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 36.0),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark ? Colors.white12 : const Color(0x0A000000),
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentOrange.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.restaurant_menu_rounded,
-                    color: AppTheme.accentOrange,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
+          // Recipe Image & Chips
+          Stack(
+            children: [
+              if (recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty)
+                Image.network(
+                  recipe.imageUrl!,
+                  height: 160,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    height: 140,
                     color: primaryGreen.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'PROXIMAMENTE',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: primaryGreen,
-                      letterSpacing: 1.0,
+                    child: Center(
+                      child: Icon(Icons.restaurant_rounded, size: 48, color: primaryGreen),
                     ),
                   ),
+                )
+              else
+                Container(
+                  height: 140,
+                  color: primaryGreen.withValues(alpha: 0.15),
+                  child: Center(
+                    child: Icon(Icons.restaurant_rounded, size: 48, color: primaryGreen),
+                  ),
                 ),
-                const SizedBox(height: 14),
+              Positioned(
+                top: 12,
+                left: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black87,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    recipe.category,
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: primaryGreen,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    recipe.difficulty,
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  'Plan Personalizado',
+                  recipe.title,
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
                     color: textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  nutri != null
-                      ? 'Tu nutricionista (${nutri.nutritionistName}) está preparando tu pauta personalizada. Muy pronto podrás consultar tus recetas y equivalencias aquí.'
-                      : 'Vincula a tu nutricionista en la sección "Nutri" para recibir tu plan alimenticio personalizado en cuanto esté listo.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: textSecondary,
-                    height: 1.4,
+                if (recipe.description != null && recipe.description!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    recipe.description!,
+                    style: TextStyle(fontSize: 13, color: textSecondary, height: 1.3),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                ],
+                const SizedBox(height: 14),
+
+                // Macronutrientes Chips
+                Row(
+                  children: [
+                    _buildMacroPill('${recipe.calories}', 'kcal', AppTheme.accentOrange),
+                    const SizedBox(width: 8),
+                    _buildMacroPill('${recipe.protein}g', 'Proteína', primaryGreen),
+                    const SizedBox(width: 8),
+                    _buildMacroPill('${recipe.carbohydrates}g', 'Carbs', Colors.blueAccent),
+                    const SizedBox(width: 8),
+                    _buildMacroPill('${recipe.fats}g', 'Grasas', Colors.purpleAccent),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Meta: Prep time, Cook time, Servings
+                Row(
+                  children: [
+                    Icon(Icons.schedule_rounded, size: 15, color: textSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${recipe.prepTimeMinutes + recipe.cookTimeMinutes} min',
+                      style: TextStyle(fontSize: 12, color: textSecondary),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(Icons.person_outline_rounded, size: 15, color: textSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${recipe.servings} porción',
+                      style: TextStyle(fontSize: 12, color: textSecondary),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        foregroundColor: primaryGreen,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      ),
+                      onPressed: () => _showRecipeDetailsSheet(recipe, isDark, cardBg, textPrimary, textSecondary, primaryGreen),
+                      icon: const Icon(Icons.menu_book_rounded, size: 16),
+                      label: const Text('Ver Receta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMacroPill(String val, String lbl, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Text(
+              val,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+            ),
+            Text(
+              lbl,
+              style: TextStyle(fontSize: 9, color: color.withValues(alpha: 0.85), fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRecipeDetailsSheet(
+    RecipeModel recipe,
+    bool isDark,
+    Color cardBg,
+    Color textPrimary,
+    Color textSecondary,
+    Color primaryGreen,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (_, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          recipe.title,
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textPrimary),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      Chip(label: Text(recipe.category), backgroundColor: primaryGreen.withValues(alpha: 0.15)),
+                      Chip(label: Text('${recipe.calories} kcal'), backgroundColor: AppTheme.accentOrange.withValues(alpha: 0.15)),
+                      Chip(label: Text('${recipe.prepTimeMinutes + recipe.cookTimeMinutes} min')),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Ingredientes
+                  Row(
+                    children: [
+                      Icon(Icons.format_list_bulleted_rounded, color: primaryGreen, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Ingredientes y Porciones',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0x08000000),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      recipe.ingredients,
+                      style: TextStyle(fontSize: 14, color: textPrimary, height: 1.5),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Instrucciones
+                  Row(
+                    children: [
+                      Icon(Icons.kitchen_rounded, color: primaryGreen, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Modo de Preparación',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0x08000000),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      recipe.instructions,
+                      style: TextStyle(fontSize: 14, color: textPrimary, height: 1.5),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
