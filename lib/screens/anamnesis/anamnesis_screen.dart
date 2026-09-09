@@ -157,6 +157,36 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
   Future<void> _saveAnamnesis() async {
     final service = context.read<AnamnesisService>();
 
+    if (_selectedGoal == 'Otro' && _otherGoalController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor escribe tu objetivo personalizado en el campo de texto.'),
+          backgroundColor: Colors.amber,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedAllergies.contains('Otros') && _otherAllergiesController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor especifica qué otras alergias tienes o desmarca la opción "Otros".'),
+          backgroundColor: Colors.amber,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedPathologies.contains('Otros') && _otherPathologiesController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor especifica tu antecedente de salud en el campo de texto de "Otros".'),
+          backgroundColor: Colors.amber,
+        ),
+      );
+      return;
+    }
+
     final pathologies = _selectedPathologies.map((p) {
       if (p == 'Otros' && _otherPathologiesController.text.trim().isNotEmpty) {
         return 'Otro: ${_otherPathologiesController.text.trim()}';
