@@ -125,6 +125,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     // Full Name Field
                     TextFormField(
                       controller: _nameController,
+                      maxLength: 250,
                       decoration: const InputDecoration(
                         labelText: 'Nombre Completo',
                         hintText: 'Alex Felipe',
@@ -136,6 +137,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         }
                         if (value.trim().length < 2) {
                           return 'Mínimo 2 caracteres';
+                        }
+                        if (value.trim().length > 250) {
+                          return 'Máximo 250 caracteres';
                         }
                         return null;
                       },
