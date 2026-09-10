@@ -186,10 +186,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Ingresa tu contraseña';
+                          return 'Por favor, rellene este campo';
                         }
                         if (value.length < 8) {
                           return 'Mínimo 8 caracteres';
+                        }
+                        if (!RegExp(r'[A-Z]').hasMatch(value)) {
+                          return 'Debe incluir al menos una letra mayúscula';
+                        }
+                        if (!RegExp(r'[a-z]').hasMatch(value)) {
+                          return 'Debe incluir al menos una letra minúscula';
+                        }
+                        if (!RegExp(r'[0-9]').hasMatch(value)) {
+                          return 'Debe incluir al menos un número';
+                        }
+                        if (!RegExp(r'[^a-zA-Z0-9]').hasMatch(value)) {
+                          return 'Debe incluir al menos un carácter especial';
                         }
                         return null;
                       },
