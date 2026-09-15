@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
-import '../../models/activity_log.dart';
 import '../../services/activity_log_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/patient_service.dart';
 import '../../services/theme_service.dart';
 import '../../services/recipe_service.dart';
 import '../../models/recipe_model.dart';
+import '../../models/notification_model.dart';
+import '../../services/appointment_service.dart';
+import '../../services/notification_service.dart';
 import '../anamnesis/anamnesis_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -29,8 +31,11 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<PatientService>().fetchMyNutritionist();
-      context.read<ActivityLogService>().fetchLogs();
       context.read<RecipeService>().fetchMyPlanRecipes();
+      context.read<NotificationService>().fetchNotifications();
+      context.read<NotificationService>().fetchUnreadCount();
+      context.read<AppointmentService>().fetchAppointments();
+      context.read<AppointmentService>().fetchNutritionists();
       context.read<ActivityLogService>().recordLog(
         action: 'INICIO_SESION',
         description: 'Inicio de sesión en aplicación móvil',
@@ -122,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _currentNavIndex = idx;
             });
             if (idx == 2) {
-              context.read<ActivityLogService>().fetchLogs();
+              context.read<NotificationService>().fetchNotifications();
             }
             if (idx == 3) {
               context.read<RecipeService>().fetchMyPlanRecipes();
@@ -142,9 +147,9 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Nutri',
             ),
             NavigationDestination(
-              icon: Icon(Icons.auto_stories_outlined, color: textSecondary),
-              selectedIcon: Icon(Icons.auto_stories_rounded, color: primaryGreen),
-              label: 'Bitácora',
+              icon: Icon(Icons.notifications_outlined, color: textSecondary),
+              selectedIcon: Icon(Icons.notifications_rounded, color: primaryGreen),
+              label: 'Notificaciones',
             ),
             NavigationDestination(
               icon: Icon(Icons.calendar_today_outlined, color: textSecondary),
@@ -194,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
           textSecondary: textSecondary,
         );
       case 2:
-        return _buildJournalView(
+        return _buildNotificationsView(
           isDark: isDark,
           primaryGreen: primaryGreen,
           cardBg: cardBg,
@@ -485,6 +490,87 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: const Icon(Icons.edit_note_rounded, color: Colors.white),
                     label: const Text(
                       'Llenar / Actualizar Anamnesis',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Card de Agendar Cita (Generar Cita)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark
+                    ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
+                    : [const Color(0xFFEFF6FF), const Color(0xFFDBEAFE)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF2563EB),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Agendar Cita con Nutricionista',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: textPrimary,
+                            ),
+                          ),
+                          Text(
+                            'Programa tu consulta presencial o virtual con tu especialista',
+                            style: TextStyle(fontSize: 12, color: textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    onPressed: () => _showScheduleAppointmentBottomSheet(context),
+                    icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white),
+                    label: const Text(
+                      'Generar Cita',
                       style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ),
@@ -1168,18 +1254,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 3. BITÁCORA DEL SISTEMA
-  Widget _buildJournalView({
+  // 3. CENTRO DE NOTIFICACIONES
+  Widget _buildNotificationsView({
     required bool isDark,
     required Color primaryGreen,
     required Color cardBg,
     required Color textPrimary,
     required Color textSecondary,
   }) {
-    final activityLogService = context.watch<ActivityLogService>();
+    final notifService = context.watch<NotificationService>();
+    final notifications = notifService.notifications;
 
     return RefreshIndicator(
-      onRefresh: () => activityLogService.fetchLogs(),
+      onRefresh: () => notifService.fetchNotifications(),
       color: primaryGreen,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -1187,7 +1274,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: Title, Subtitle, and Refresh Button
+            // Header: Title, Subtitle, and Mark All Read Button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1196,17 +1283,39 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Bitácora del Sistema',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: textPrimary,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            'Notificaciones',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: textPrimary,
+                            ),
+                          ),
+                          if (notifService.unreadCount > 0) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.redAccent,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${notifService.unreadCount}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Registro cronológico de actividades y eventos',
+                        'Avisos de citas, confirmaciones y actualizaciones',
                         style: TextStyle(
                           fontSize: 13,
                           color: textSecondary,
@@ -1215,107 +1324,77 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: activityLogService.isLoading
-                      ? null
-                      : () => activityLogService.fetchLogs(),
-                  icon: activityLogService.isLoading
-                      ? SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: primaryGreen,
-                          ),
-                        )
-                      : Icon(Icons.refresh_rounded, size: 16, color: primaryGreen),
-                  label: Text(
-                    'Actualizar',
-                    style: TextStyle(
-                      color: primaryGreen,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                if (notifService.unreadCount > 0)
+                  TextButton.icon(
+                    onPressed: () => notifService.markAllAsRead(),
+                    icon: const Icon(Icons.done_all_rounded, size: 16),
+                    label: const Text('Leer todas', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: primaryGreen,
                     ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    side: BorderSide(color: primaryGreen.withValues(alpha: 0.3)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Logs Content
-            if (activityLogService.isLoading && activityLogService.logs.isEmpty)
+            if (notifService.isLoading && notifications.isEmpty)
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 60.0),
+                  padding: const EdgeInsets.all(40.0),
                   child: CircularProgressIndicator(color: primaryGreen),
                 ),
               )
-            else if (activityLogService.logs.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
-                decoration: BoxDecoration(
-                  color: cardBg,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: isDark ? Colors.white12 : const Color(0x0A000000),
+            else if (notifications.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 60.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1B2620) : const Color(0xFFE8F5E9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.notifications_none_rounded,
+                          size: 48,
+                          color: primaryGreen,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Sin notificaciones pendientes',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Cuando tu nutricionista confirme o cancele tus citas, recibirás las alertas aquí.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: primaryGreen.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.history_rounded,
-                        color: primaryGreen,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No hay eventos registrados',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'No se encontraron registros de eventos en la bitácora.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: textSecondary,
-                      ),
-                    ),
-                  ],
                 ),
               )
             else
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: activityLogService.logs.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                itemCount: notifications.length,
+                separatorBuilder: (ctx, idx) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
-                  final log = activityLogService.logs[index];
-                  return _buildLogItemCard(
-                    log: log,
+                  final notif = notifications[index];
+                  return _buildNotificationCard(
+                    notif: notif,
                     isDark: isDark,
                     cardBg: cardBg,
                     textPrimary: textPrimary,
@@ -1324,136 +1403,480 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLogItemCard({
-    required ActivityLog log,
+  Widget _buildNotificationCard({
+    required NotificationModel notif,
     required bool isDark,
     required Color cardBg,
     required Color textPrimary,
     required Color textSecondary,
     required Color primaryGreen,
   }) {
-    Color badgeBg;
-    Color badgeFg;
-    final actionUpper = log.action.toUpperCase();
+    Color iconBg;
+    Color iconColor;
+    IconData iconData;
 
-    if (actionUpper.contains('SESION') || actionUpper.contains('LOGIN')) {
-      badgeBg = const Color(0xFF10B981).withValues(alpha: 0.15);
-      badgeFg = const Color(0xFF10B981);
-    } else if (actionUpper.contains('VINCUL') || actionUpper.contains('EMPAREJ')) {
-      badgeBg = const Color(0xFF8B5CF6).withValues(alpha: 0.15);
-      badgeFg = const Color(0xFF8B5CF6);
-    } else if (actionUpper.contains('CONSULTA') || actionUpper.contains('BUSQUEDA')) {
-      badgeBg = const Color(0xFF3B82F6).withValues(alpha: 0.15);
-      badgeFg = const Color(0xFF3B82F6);
-    } else if (actionUpper.contains('LOGOUT') || actionUpper.contains('SALIR')) {
-      badgeBg = const Color(0xFFEF4444).withValues(alpha: 0.15);
-      badgeFg = const Color(0xFFEF4444);
-    } else {
-      badgeBg = primaryGreen.withValues(alpha: 0.15);
-      badgeFg = primaryGreen;
+    switch (notif.type) {
+      case 'CITA_CONFIRMADA':
+        iconBg = const Color(0xFF10B981).withValues(alpha: 0.15);
+        iconColor = const Color(0xFF10B981);
+        iconData = Icons.check_circle_rounded;
+        break;
+      case 'CITA_CANCELADA':
+        iconBg = Colors.redAccent.withValues(alpha: 0.15);
+        iconColor = Colors.redAccent;
+        iconData = Icons.cancel_rounded;
+        break;
+      case 'CITA_CREADA':
+        iconBg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
+        iconColor = const Color(0xFFF59E0B);
+        iconData = Icons.calendar_month_rounded;
+        break;
+      default:
+        iconBg = primaryGreen.withValues(alpha: 0.15);
+        iconColor = primaryGreen;
+        iconData = Icons.notifications_active_rounded;
+        break;
     }
 
-    final hour = log.createdAt.hour.toString().padLeft(2, '0');
-    final minute = log.createdAt.minute.toString().padLeft(2, '0');
-    final second = log.createdAt.second.toString().padLeft(2, '0');
-    final day = log.createdAt.day.toString().padLeft(2, '0');
-    final month = log.createdAt.month.toString().padLeft(2, '0');
-    final year = log.createdAt.year.toString();
+    final date = notif.createdAt;
+    final formattedDate =
+        '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isDark ? Colors.white12 : const Color(0x0A000000),
+    return InkWell(
+      onTap: () {
+        if (!notif.isRead) {
+          context.read<NotificationService>().markAsRead(notif.id);
+        }
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: notif.isRead
+              ? cardBg
+              : (isDark ? const Color(0xFF1C2B22) : const Color(0xFFF0FDF4)),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: notif.isRead
+                ? (isDark ? Colors.white10 : const Color(0x0A000000))
+                : primaryGreen.withValues(alpha: 0.5),
+            width: notif.isRead ? 1 : 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Row 1: Time, Date and Action Badge
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconBg,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(iconData, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.access_time_rounded, size: 14, color: textSecondary),
-                  const SizedBox(width: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          notif.title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: textPrimary,
+                          ),
+                        ),
+                      ),
+                      if (!notif.isRead)
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2563EB),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
                   Text(
-                    '$hour:$minute:$second',
+                    notif.message,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: textPrimary,
+                      color: textSecondary,
+                      height: 1.35,
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(height: 8),
                   Text(
-                    '$day/$month/$year',
+                    formattedDate,
                     style: TextStyle(
                       fontSize: 11,
-                      color: textSecondary,
+                      color: textSecondary.withValues(alpha: 0.8),
                     ),
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: badgeBg,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  log.action,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: badgeFg,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Row 2: Event Description
-          Text(
-            log.description,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: textPrimary,
-              height: 1.35,
             ),
-          ),
-          const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
 
-          // Row 3: Origin / IP
-          Row(
-            children: [
-              Icon(Icons.phone_android_rounded, size: 13, color: textSecondary),
-              const SizedBox(width: 4),
-              Text(
-                'Móvil App • ${log.ipAddress ?? "127.0.0.1"}',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: textSecondary,
-                  fontFamily: 'monospace',
+  // DIÁLOGO / BOTTOMSHEET PARA GENERAR CITA
+  void _showScheduleAppointmentBottomSheet(BuildContext context) {
+    final patientService = context.read<PatientService>();
+    final apptService = context.read<AppointmentService>();
+    final themeService = context.read<ThemeService>();
+    final isDark = themeService.isDarkMode;
+
+    final primaryGreen = isDark ? AppTheme.primaryGreenDark : AppTheme.primaryGreen;
+    final cardBg = isDark ? AppTheme.darkCard : AppTheme.lightCard;
+    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
+    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
+    TimeOfDay selectedTime = const TimeOfDay(hour: 10, minute: 0);
+    final TextEditingController reasonController = TextEditingController();
+    String? selectedNutritionistId = patientService.linkedNutritionist?.nutritionistId;
+    String? selectedNutritionistName = patientService.linkedNutritionist?.nutritionistName;
+
+    // Si aún no hay selección y hay nutricionistas disponibles
+    if (selectedNutritionistId == null && apptService.nutritionists.isNotEmpty) {
+      selectedNutritionistId = apptService.nutritionists.first.id;
+      selectedNutritionistName = apptService.nutritionists.first.fullName;
+    }
+
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.calendar_month_rounded, color: Color(0xFF2563EB), size: 20),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Agendar Cita',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close, color: textSecondary),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Selector de Nutricionista
+                    Text(
+                      'Nutricionista *',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary),
+                    ),
+                    const SizedBox(height: 6),
+                    if (apptService.nutritionists.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedNutritionistId,
+                        dropdownColor: cardBg,
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(Icons.person_rounded, color: primaryGreen),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        ),
+                        items: apptService.nutritionists.map((n) {
+                          return DropdownMenuItem<String>(
+                            value: n.id,
+                            child: Text(n.fullName, style: TextStyle(color: textPrimary, fontSize: 14)),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setModalState(() {
+                            selectedNutritionistId = val;
+                          });
+                        },
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.person_rounded, color: primaryGreen, size: 20),
+                            const SizedBox(width: 10),
+                            Text(
+                              selectedNutritionistName ?? 'Especialista de la clínica',
+                              style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+
+                    // Selector de Fecha y Hora
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Fecha *',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary),
+                              ),
+                              const SizedBox(height: 6),
+                              InkWell(
+                                onTap: () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: selectedDate,
+                                    firstDate: DateTime.now(),
+                                    lastDate: DateTime.now().add(const Duration(days: 90)),
+                                  );
+                                  if (picked != null) {
+                                    setModalState(() {
+                                      selectedDate = picked;
+                                    });
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(14),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.calendar_today_rounded, size: 16, color: primaryGreen),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                                        style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Hora *',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary),
+                              ),
+                              const SizedBox(height: 6),
+                              InkWell(
+                                onTap: () async {
+                                  final picked = await showTimePicker(
+                                    context: context,
+                                    initialTime: selectedTime,
+                                  );
+                                  if (picked != null) {
+                                    setModalState(() {
+                                      selectedTime = picked;
+                                    });
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(14),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.access_time_rounded, size: 16, color: primaryGreen),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        selectedTime.format(context),
+                                        style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Motivo de consulta (Opcional)
+                    Text(
+                      'Motivo de la consulta (Opcional)',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: reasonController,
+                      maxLines: 2,
+                      style: TextStyle(color: textPrimary, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Ej: Control mensual, revisión de plan alimenticio...',
+                        hintStyle: TextStyle(color: textSecondary.withValues(alpha: 0.6), fontSize: 13),
+                        filled: true,
+                        fillColor: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Botón de Enviar
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                if (selectedNutritionistId == null && apptService.nutritionists.isNotEmpty) {
+                                  selectedNutritionistId = apptService.nutritionists.first.id;
+                                }
+
+                                if (selectedNutritionistId == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Por favor selecciona un nutricionista disponible'),
+                                      backgroundColor: Colors.redAccent,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                setModalState(() {
+                                  isSubmitting = true;
+                                });
+
+                                final scheduledDateTime = DateTime(
+                                  selectedDate.year,
+                                  selectedDate.month,
+                                  selectedDate.day,
+                                  selectedTime.hour,
+                                  selectedTime.minute,
+                                );
+
+                                final success = await apptService.bookAppointment(
+                                  nutritionistId: selectedNutritionistId!,
+                                  scheduledAt: scheduledDateTime,
+                                  reason: reasonController.text.trim(),
+                                );
+
+                                if (context.mounted) {
+                                  Navigator.pop(context);
+                                  if (success) {
+                                    context.read<NotificationService>().fetchNotifications();
+                                    context.read<NotificationService>().fetchUnreadCount();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('¡Cita solicitada con éxito! Queda pendiente de confirmación por tu especialista.'),
+                                        backgroundColor: Color(0xFF059669),
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(apptService.errorMessage ?? 'Error al agendar la cita'),
+                                        backgroundColor: Colors.redAccent,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        child: isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Text(
+                                'Confirmar y Agendar Cita',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 

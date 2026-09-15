@@ -89,6 +89,27 @@ class ApiService {
     }
   }
 
+  Future<dynamic> patch(
+    String endpoint, {
+    Map<String, dynamic>? body,
+    bool includeAuth = true,
+  }) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+    final headers = await _getHeaders(includeAuth: includeAuth);
+
+    try {
+      final response = await http.patch(
+        url,
+        headers: headers,
+        body: body != null ? jsonEncode(body) : null,
+      );
+      return _processResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Error de conexión con el servidor ($e)');
+    }
+  }
+
   Future<dynamic> delete(
     String endpoint, {
     Map<String, dynamic>? body,
