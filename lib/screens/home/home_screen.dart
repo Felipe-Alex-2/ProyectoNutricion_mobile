@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<RecipeService>().fetchMyPlanRecipes();
       context.read<NotificationService>().fetchNotifications();
       context.read<NotificationService>().fetchUnreadCount();
+      context.read<NotificationService>().startPolling();
       context.read<AppointmentService>().fetchAppointments();
       context.read<AppointmentService>().fetchNutritionists();
       context.read<ActivityLogService>().recordLog(
@@ -45,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    context.read<NotificationService>().stopPolling();
     _codeController.dispose();
     super.dispose();
   }
@@ -90,12 +92,54 @@ class _HomeScreenState extends State<HomeScreen> {
     final authService = context.watch<AuthService>();
     final themeService = context.watch<ThemeService>();
     final patientService = context.watch<PatientService>();
+    final notifService = context.watch<NotificationService>();
+    final unreadCount = notifService.unreadCount;
     final isDark = themeService.isDarkMode;
 
     final primaryGreen = isDark ? AppTheme.primaryGreenDark : AppTheme.primaryGreen;
     final cardBg = isDark ? AppTheme.darkCard : AppTheme.lightCard;
     final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
     final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+
+    // Si llegó una nueva alerta en vivo, mostrar notificación emergente flotante
+    final alert = notifService.latestAlert;
+    if (alert != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        notifService.clearLatestAlert();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.notifications_active, color: Colors.white, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        alert.title,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                      ),
+                      Text(
+                        alert.message,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppTheme.primaryGreen,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      });
+    }
 
     return Scaffold(
       backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
@@ -120,48 +164,75 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-        child: NavigationBar(
-          selectedIndex: _currentNavIndex,
-          onDestinationSelected: (idx) {
-            setState(() {
-              _currentNavIndex = idx;
-            });
-            if (idx == 2) {
-              context.read<NotificationService>().fetchNotifications();
-            }
-            if (idx == 3) {
-              context.read<RecipeService>().fetchMyPlanRecipes();
-            }
-          },
-          backgroundColor: Colors.transparent,
-          indicatorColor: isDark ? AppTheme.darkPillActive : AppTheme.lightPillActive,
-          destinations: [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined, color: textSecondary),
-              selectedIcon: Icon(Icons.home_rounded, color: primaryGreen),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.medical_services_outlined, color: textSecondary),
-              selectedIcon: Icon(Icons.medical_services_rounded, color: primaryGreen),
-              label: 'Nutri',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.notifications_outlined, color: textSecondary),
-              selectedIcon: Icon(Icons.notifications_rounded, color: primaryGreen),
-              label: 'Notificaciones',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.calendar_today_outlined, color: textSecondary),
-              selectedIcon: Icon(Icons.calendar_month_rounded, color: primaryGreen),
-              label: 'Plan',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded, color: textSecondary),
-              selectedIcon: Icon(Icons.person_rounded, color: primaryGreen),
-              label: 'Perfil',
-            ),
-          ],
+        child: NavigationBarTheme(
+          data: NavigationBarThemeData(
+            labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+              final isSelected = states.contains(WidgetState.selected);
+              return TextStyle(
+                fontSize: 10.0,
+                letterSpacing: -0.5,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected ? primaryGreen : textSecondary,
+              );
+            }),
+          ),
+          child: NavigationBar(
+            selectedIndex: _currentNavIndex,
+            onDestinationSelected: (idx) {
+              setState(() {
+                _currentNavIndex = idx;
+              });
+              if (idx == 2) {
+                context.read<NotificationService>().fetchNotifications();
+              }
+              if (idx == 3) {
+                context.read<RecipeService>().fetchMyPlanRecipes();
+              }
+            },
+            backgroundColor: Colors.transparent,
+            indicatorColor: isDark ? AppTheme.darkPillActive : AppTheme.lightPillActive,
+            destinations: [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined, color: textSecondary),
+                selectedIcon: Icon(Icons.home_rounded, color: primaryGreen),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.medical_services_outlined, color: textSecondary),
+                selectedIcon: Icon(Icons.medical_services_rounded, color: primaryGreen),
+                label: 'Nutri',
+              ),
+              NavigationDestination(
+                icon: unreadCount > 0
+                    ? Badge.count(
+                        count: unreadCount,
+                        backgroundColor: const Color(0xFFDC2626),
+                        textColor: Colors.white,
+                        child: Icon(Icons.notifications_outlined, color: textSecondary),
+                      )
+                    : Icon(Icons.notifications_outlined, color: textSecondary),
+                selectedIcon: unreadCount > 0
+                    ? Badge.count(
+                        count: unreadCount,
+                        backgroundColor: const Color(0xFFDC2626),
+                        textColor: Colors.white,
+                        child: Icon(Icons.notifications_rounded, color: primaryGreen),
+                      )
+                    : Icon(Icons.notifications_rounded, color: primaryGreen),
+                label: 'Notificaciones',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.calendar_today_outlined, color: textSecondary),
+                selectedIcon: Icon(Icons.calendar_month_rounded, color: primaryGreen),
+                label: 'Plan',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded, color: textSecondary),
+                selectedIcon: Icon(Icons.person_rounded, color: primaryGreen),
+                label: 'Perfil',
+              ),
+            ],
+          ),
         ),
       ),
     );
