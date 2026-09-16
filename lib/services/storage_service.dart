@@ -31,4 +31,31 @@ class StorageService {
     final token = await getAccessToken();
     return token != null && token.isNotEmpty;
   }
+
+  Future<void> saveLocalSubscription({
+    required String status,
+    required String expiresAt,
+    required String orderId,
+  }) async {
+    await _storage.write(key: 'sub_status', value: status);
+    await _storage.write(key: 'sub_expires', value: expiresAt);
+    await _storage.write(key: 'sub_order', value: orderId);
+  }
+
+  Future<Map<String, String?>> getLocalSubscription() async {
+    final status = await _storage.read(key: 'sub_status');
+    final expires = await _storage.read(key: 'sub_expires');
+    final order = await _storage.read(key: 'sub_order');
+    return {
+      'status': status,
+      'expires': expires,
+      'order': order,
+    };
+  }
+
+  Future<void> clearLocalSubscription() async {
+    await _storage.delete(key: 'sub_status');
+    await _storage.delete(key: 'sub_expires');
+    await _storage.delete(key: 'sub_order');
+  }
 }

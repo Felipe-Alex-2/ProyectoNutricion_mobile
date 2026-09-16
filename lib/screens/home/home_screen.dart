@@ -10,7 +10,10 @@ import '../../models/recipe_model.dart';
 import '../../models/notification_model.dart';
 import '../../services/appointment_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/subscription_service.dart';
 import '../anamnesis/anamnesis_screen.dart';
+import '../notifications/notifications_screen.dart';
+import '../subscriptions/subscriptions_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -37,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<NotificationService>().startPolling();
       context.read<AppointmentService>().fetchAppointments();
       context.read<AppointmentService>().fetchNutritionists();
+      context.read<SubscriptionService>().fetchCurrentSubscription();
       context.read<ActivityLogService>().recordLog(
         action: 'INICIO_SESION',
         description: 'Inicio de sesión en aplicación móvil',
@@ -148,6 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
           authService: authService,
           themeService: themeService,
           patientService: patientService,
+          unreadCount: unreadCount,
           isDark: isDark,
           primaryGreen: primaryGreen,
           cardBg: cardBg,
@@ -183,7 +188,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _currentNavIndex = idx;
               });
               if (idx == 2) {
-                context.read<NotificationService>().fetchNotifications();
+                context.read<SubscriptionService>().fetchCurrentSubscription();
+                context.read<SubscriptionService>().fetchPlans();
               }
               if (idx == 3) {
                 context.read<RecipeService>().fetchMyPlanRecipes();
@@ -203,23 +209,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: 'Nutri',
               ),
               NavigationDestination(
-                icon: unreadCount > 0
-                    ? Badge.count(
-                        count: unreadCount,
-                        backgroundColor: const Color(0xFFDC2626),
-                        textColor: Colors.white,
-                        child: Icon(Icons.notifications_outlined, color: textSecondary),
-                      )
-                    : Icon(Icons.notifications_outlined, color: textSecondary),
-                selectedIcon: unreadCount > 0
-                    ? Badge.count(
-                        count: unreadCount,
-                        backgroundColor: const Color(0xFFDC2626),
-                        textColor: Colors.white,
-                        child: Icon(Icons.notifications_rounded, color: primaryGreen),
-                      )
-                    : Icon(Icons.notifications_rounded, color: primaryGreen),
-                label: 'Notificaciones',
+                icon: Icon(Icons.workspace_premium_outlined, color: textSecondary),
+                selectedIcon: Icon(Icons.workspace_premium_rounded, color: primaryGreen),
+                label: 'Suscripciones',
               ),
               NavigationDestination(
                 icon: Icon(Icons.calendar_today_outlined, color: textSecondary),
@@ -242,6 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required AuthService authService,
     required ThemeService themeService,
     required PatientService patientService,
+    required int unreadCount,
     required bool isDark,
     required Color primaryGreen,
     required Color cardBg,
@@ -254,6 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
           authService: authService,
           themeService: themeService,
           patientService: patientService,
+          unreadCount: unreadCount,
           isDark: isDark,
           primaryGreen: primaryGreen,
           cardBg: cardBg,
@@ -270,13 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
           textSecondary: textSecondary,
         );
       case 2:
-        return _buildNotificationsView(
-          isDark: isDark,
-          primaryGreen: primaryGreen,
-          cardBg: cardBg,
-          textPrimary: textPrimary,
-          textSecondary: textSecondary,
-        );
+        return const SubscriptionsScreen();
       case 3:
         return _buildPlanView(
           patientService: patientService,
@@ -307,6 +295,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required AuthService authService,
     required ThemeService themeService,
     required PatientService patientService,
+    required int unreadCount,
     required bool isDark,
     required Color primaryGreen,
     required Color cardBg,
@@ -372,13 +361,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 child: IconButton(
-                  icon: Icon(
-                    isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                    color: isDark ? const Color(0xFFFBBF24) : AppTheme.primaryGreen,
-                    size: 20,
-                  ),
-                  tooltip: isDark ? 'Modo Claro' : 'Modo Oscuro',
-                  onPressed: () => themeService.toggleTheme(),
+                  icon: unreadCount > 0
+                      ? Badge.count(
+                          count: unreadCount,
+                          backgroundColor: const Color(0xFFDC2626),
+                          textColor: Colors.white,
+                          child: Icon(
+                            Icons.notifications_outlined,
+                            color: isDark ? const Color(0xFFFBBF24) : primaryGreen,
+                            size: 22,
+                          ),
+                        )
+                      : Icon(
+                          Icons.notifications_outlined,
+                          color: isDark ? Colors.white70 : const Color(0xFF334155),
+                          size: 22,
+                        ),
+                  tooltip: 'Notificaciones',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationsScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -1325,7 +1331,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // 3. CENTRO DE NOTIFICACIONES
+  // 3. CENTRO DE NOTIFICACIONES (Conservado por compatibilidad)
+  // ignore: unused_element
   Widget _buildNotificationsView({
     required bool isDark,
     required Color primaryGreen,

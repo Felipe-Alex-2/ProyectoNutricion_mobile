@@ -21,6 +21,14 @@ class NotificationModel {
     required this.createdAt,
   });
 
+  String get timeAgo {
+    final diff = DateTime.now().difference(createdAt);
+    if (diff.inDays > 0) return 'Hace ${diff.inDays} d';
+    if (diff.inHours > 0) return 'Hace ${diff.inHours} h';
+    if (diff.inMinutes > 0) return 'Hace ${diff.inMinutes} min';
+    return 'Hace un momento';
+  }
+
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     return NotificationModel(
       id: json['id'] as String,
