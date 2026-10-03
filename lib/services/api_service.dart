@@ -1,7 +1,11 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import 'storage_service.dart';
+
+import '../modo_offline/cache_local_service.dart';
+import '../modo_offline/conectividad_service.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -15,8 +19,15 @@ class ApiException implements Exception {
 
 class ApiService {
   final StorageService _storageService;
+  CacheLocalService? cacheService;
+  ConectividadService? conectividadService;
+  String? currentUserId;
 
-  ApiService(this._storageService);
+  ApiService(
+    this._storageService, {
+    this.cacheService,
+    this.conectividadService,
+  });
 
   Future<Map<String, String>> _getHeaders({bool includeAuth = true}) async {
     final headers = {
@@ -34,15 +45,43 @@ class ApiService {
     return headers;
   }
 
-  Future<dynamic> get(String endpoint, {bool includeAuth = true}) async {
+  Future<dynamic> get(String endpoint, {bool includeAuth = true, bool usarCache = true}) async {
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     final headers = await _getHeaders(includeAuth: includeAuth);
 
+    // Si no hay conexión y el caché está disponible, consultar primero el caché local
+    if (conectividadService != null && !conectividadService!.estaConectado && usarCache && cacheService != null) {
+      final cached = await cacheService!.obtener(endpoint, userId: currentUserId);
+      if (cached != null) {
+        debugPrint('[ApiService] Sin conexión: Sirviendo desde caché para $endpoint');
+        return cached;
+      }
+    }
+
     try {
-      final response = await http.get(url, headers: headers);
-      return _processResponse(response);
+      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 12));
+      final data = _processResponse(response);
+
+      // Guardar en caché local si la respuesta fue exitosa
+      if (usarCache && cacheService != null && data != null) {
+        await cacheService!.guardar(endpoint, data, userId: currentUserId);
+      }
+      return data;
     } catch (e) {
       if (e is ApiException) rethrow;
+
+      // Error de red/conectividad
+      conectividadService?.marcarDesconectadoPorErrorHttp();
+
+      // Fallback a caché local
+      if (usarCache && cacheService != null) {
+        final cached = await cacheService!.obtener(endpoint, userId: currentUserId);
+        if (cached != null) {
+          debugPrint('[ApiService] Fallback exitoso a caché offline para $endpoint');
+          return cached;
+        }
+      }
+
       throw ApiException('Error de conexión con el servidor ($e)');
     }
   }
@@ -128,6 +167,42 @@ class ApiService {
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException('Error de conexión con el servidor ($e)');
+    }
+  }
+
+  Future<dynamic> postMultipart(
+    String endpoint, {
+    required List<int> fileBytes,
+    required String filename,
+    String fieldName = 'file',
+    bool includeAuth = true,
+  }) async {
+    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
+    final request = http.MultipartRequest('POST', url);
+
+    if (includeAuth) {
+      final token = await _storageService.getAccessToken();
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+    }
+    request.headers['Accept'] = 'application/json';
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        fieldName,
+        fileBytes,
+        filename: filename,
+      ),
+    );
+
+    try {
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      return _processResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('Error de conexión al subir imagen ($e)');
     }
   }
 

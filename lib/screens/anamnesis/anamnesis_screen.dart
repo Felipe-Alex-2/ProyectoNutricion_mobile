@@ -13,7 +13,21 @@ class AnamnesisScreen extends StatefulWidget {
 }
 
 class _AnamnesisScreenState extends State<AnamnesisScreen> {
-  // Lista de opciones para Chips
+  // 1. Datos Biométricos y ML
+  DateTime? _birthDate;
+  String _selectedGender = 'M';
+  final TextEditingController _weightController = TextEditingController(text: '70');
+  final TextEditingController _heightController = TextEditingController(text: '170');
+  final TextEditingController _targetWeightController = TextEditingController();
+  final TextEditingController _targetWeeksController = TextEditingController();
+  bool _isPregnantOrLactating = false;
+
+  // 2. Sistema Experto & Hábitos Dietéticos
+  int _fruitsDaily = 3;
+  int _sugaryDrinksWeekly = 0;
+  int _mealsPerDay = 4;
+
+  // 3. Alergias y Patologías
   final List<String> _allergiesList = [
     'Ninguna',
     'Lactosa',
@@ -39,6 +53,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
   final Set<String> _selectedPathologies = {'Ninguna'};
   final TextEditingController _otherPathologiesController = TextEditingController();
 
+  // 4. Objetivos y Estilo de Vida
   final List<String> _goalsList = [
     'Pérdida de grasa',
     'Aumento de masa muscular',
@@ -71,6 +86,9 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
   final TextEditingController _foodPreferencesController = TextEditingController();
   final TextEditingController _digestiveController = TextEditingController();
 
+  // 5. Consentimiento Legal de Datos de Salud
+  bool _consentDataProcessing = true;
+
   @override
   void initState() {
     super.initState();
@@ -86,6 +104,22 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     final data = service.anamnesis;
     if (data != null && mounted) {
       setState(() {
+        _birthDate = data.birthDate;
+        _selectedGender = data.gender;
+        _weightController.text = data.weightKg.toStringAsFixed(1);
+        _heightController.text = data.heightCm.toStringAsFixed(1);
+        if (data.targetWeightKg != null) {
+          _targetWeightController.text = data.targetWeightKg!.toStringAsFixed(1);
+        }
+        if (data.targetWeeks != null) {
+          _targetWeeksController.text = data.targetWeeks.toString();
+        }
+        _isPregnantOrLactating = data.isPregnantOrLactating;
+
+        _fruitsDaily = data.fruitsVegetablesDaily;
+        _sugaryDrinksWeekly = data.sugaryDrinksWeekly;
+        _mealsPerDay = data.mealsPerDay;
+
         _waterLiters = data.waterIntakeLiters;
         _sleepHours = data.sleepHours;
         _coffeeCups = data.coffeeCups;
@@ -96,6 +130,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
         _medicationsController.text = data.medications ?? '';
         _foodPreferencesController.text = data.foodPreferences ?? '';
         _digestiveController.text = data.digestiveSymptoms ?? '';
+        _consentDataProcessing = data.consentDataProcessing;
 
         if (data.goal.isNotEmpty) {
           if (_goalsList.sublist(0, 4).contains(data.goal)) {
@@ -123,6 +158,11 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
           if (_selectedAllergies.isEmpty) _selectedAllergies.add('Ninguna');
         }
 
+        if (data.otherAllergies != null && data.otherAllergies!.isNotEmpty) {
+          _selectedAllergies.add('Otros');
+          _otherAllergiesController.text = data.otherAllergies!;
+        }
+
         if (data.pathologies != null && data.pathologies!.isNotEmpty) {
           _selectedPathologies.clear();
           final items = data.pathologies!.split(', ').map((e) => e.trim());
@@ -139,12 +179,21 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
           }
           if (_selectedPathologies.isEmpty) _selectedPathologies.add('Ninguna');
         }
+
+        if (data.otherPathologies != null && data.otherPathologies!.isNotEmpty) {
+          _selectedPathologies.add('Otros');
+          _otherPathologiesController.text = data.otherPathologies!;
+        }
       });
     }
   }
 
   @override
   void dispose() {
+    _weightController.dispose();
+    _heightController.dispose();
+    _targetWeightController.dispose();
+    _targetWeeksController.dispose();
     _otherAllergiesController.dispose();
     _otherPathologiesController.dispose();
     _otherGoalController.dispose();
@@ -154,33 +203,41 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     super.dispose();
   }
 
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _birthDate ?? DateTime(now.year - 25, 1, 1),
+      firstDate: DateTime(now.year - 100),
+      lastDate: now,
+    );
+    if (picked != null) {
+      setState(() => _birthDate = picked);
+    }
+  }
+
   Future<void> _saveAnamnesis() async {
     final service = context.read<AnamnesisService>();
+
+    if (!_consentDataProcessing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debes aceptar el consentimiento para el tratamiento de tus datos de salud.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final weight = double.tryParse(_weightController.text.trim()) ?? 70.0;
+    final height = double.tryParse(_heightController.text.trim()) ?? 170.0;
+    final targetWeight = double.tryParse(_targetWeightController.text.trim());
+    final targetWeeks = int.tryParse(_targetWeeksController.text.trim());
 
     if (_selectedGoal == 'Otro' && _otherGoalController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Por favor escribe tu objetivo personalizado en el campo de texto.'),
-          backgroundColor: Colors.amber,
-        ),
-      );
-      return;
-    }
-
-    if (_selectedAllergies.contains('Otros') && _otherAllergiesController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor especifica qué otras alergias tienes o desmarca la opción "Otros".'),
-          backgroundColor: Colors.amber,
-        ),
-      );
-      return;
-    }
-
-    if (_selectedPathologies.contains('Otros') && _otherPathologiesController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor especifica tu antecedente de salud en el campo de texto de "Otros".'),
           backgroundColor: Colors.amber,
         ),
       );
@@ -206,8 +263,20 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
         : _selectedGoal;
 
     final model = PatientAnamnesisModel(
+      birthDate: _birthDate,
+      gender: _selectedGender,
+      weightKg: weight,
+      heightCm: height,
+      targetWeightKg: targetWeight,
+      targetWeeks: targetWeeks,
+      isPregnantOrLactating: _selectedGender == 'F' ? _isPregnantOrLactating : false,
+      fruitsVegetablesDaily: _fruitsDaily,
+      sugaryDrinksWeekly: _sugaryDrinksWeekly,
+      mealsPerDay: _mealsPerDay,
       pathologies: pathologies.join(', '),
       allergies: allergies.join(', '),
+      otherAllergies: _otherAllergiesController.text.trim().isNotEmpty ? _otherAllergiesController.text.trim() : null,
+      otherPathologies: _otherPathologiesController.text.trim().isNotEmpty ? _otherPathologiesController.text.trim() : null,
       medications: _medicationsController.text.trim(),
       waterIntakeLiters: _waterLiters,
       alcoholFrequency: _selectedAlcohol,
@@ -218,6 +287,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
       digestiveSymptoms: _digestiveController.text.trim(),
       foodPreferences: _foodPreferencesController.text.trim(),
       goal: goal,
+      consentDataProcessing: _consentDataProcessing,
     );
 
     final ok = await service.saveMyAnamnesis(model);
@@ -226,7 +296,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('¡Ficha de salud guardada exitosamente! Tu especialista ya puede verla.'),
+          content: Text('¡Ficha de salud guardada exitosamente! Tu plan ya puede calcularse.'),
           backgroundColor: AppTheme.primaryGreen,
         ),
       );
@@ -234,7 +304,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(service.errorMessage ?? 'Error al guardar'),
+          content: Text(service.errorMessage ?? 'Error al guardar los datos de salud'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -290,7 +360,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Anamnesis Nutricional',
+                            'Anamnesis Nutricional & IA',
                             style: TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.bold,
@@ -299,7 +369,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Llena estos campos sencillos para que tu especialista diseñe tu plan a medida.',
+                            'Tus datos biométricos alimentan el motor de cálculo calórico (Mifflin-St Jeor) y las reglas de seguridad.',
                             style: TextStyle(fontSize: 12, color: textSecondary),
                           ),
                         ],
@@ -308,6 +378,134 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                   ],
                 ),
               ),
+
+              const SizedBox(height: 24),
+
+              // 0. Datos Biométricos
+              _buildSectionHeader(Icons.accessibility_new_rounded, 'Datos Biométricos (Para el cálculo calórico)', textPrimary),
+              const SizedBox(height: 12),
+
+              // Fecha de Nacimiento y Sexo
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: _pickBirthDate,
+                      icon: const Icon(Icons.calendar_today_rounded, size: 18),
+                      label: Text(
+                        _birthDate == null
+                            ? 'Fec. Nacimiento'
+                            : '${_birthDate!.day}/${_birthDate!.month}/${_birthDate!.year}',
+                        style: TextStyle(fontSize: 13, color: textPrimary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Sexo M / F
+                  ChoiceChip(
+                    label: const Text('Hombre (M)'),
+                    selected: _selectedGender == 'M',
+                    selectedColor: primaryGreen,
+                    labelStyle: TextStyle(color: _selectedGender == 'M' ? Colors.white : textPrimary),
+                    onSelected: (val) {
+                      if (val) setState(() => _selectedGender = 'M');
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  ChoiceChip(
+                    label: const Text('Mujer (F)'),
+                    selected: _selectedGender == 'F',
+                    selectedColor: primaryGreen,
+                    labelStyle: TextStyle(color: _selectedGender == 'F' ? Colors.white : textPrimary),
+                    onSelected: (val) {
+                      if (val) setState(() => _selectedGender = 'F');
+                    },
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // Peso y Talla
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _weightController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Peso actual (kg)',
+                        filled: true,
+                        fillColor: cardBg,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _heightController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Talla (cm)',
+                        filled: true,
+                        fillColor: cardBg,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // Peso Objetivo y Plazo
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _targetWeightController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Peso objetivo (kg)',
+                        hintText: 'Opcional',
+                        filled: true,
+                        fillColor: cardBg,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _targetWeeksController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Plazo (semanas)',
+                        hintText: 'Ej. 12',
+                        filled: true,
+                        fillColor: cardBg,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              if (_selectedGender == 'F') ...[
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Embarazo o Lactancia', style: TextStyle(fontSize: 14, color: textPrimary)),
+                  subtitle: Text('Aplica reglas de seguridad nutricional especiales.', style: TextStyle(fontSize: 12, color: textSecondary)),
+                  value: _isPregnantOrLactating,
+                  onChanged: (val) => setState(() => _isPregnantOrLactating = val),
+                ),
+              ],
 
               const SizedBox(height: 24),
 
@@ -338,10 +536,9 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                 TextField(
                   controller: _otherGoalController,
                   decoration: InputDecoration(
-                    hintText: 'Escribe aquí tu objetivo personalizado...',
+                    hintText: 'Escribe tu objetivo personalizado...',
                     filled: true,
                     fillColor: cardBg,
-                    prefixIcon: const Icon(Icons.edit_outlined, size: 18),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -350,9 +547,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
               const SizedBox(height: 24),
 
               // 2. Alergias e Intolerancias
-              _buildSectionHeader(Icons.warning_amber_rounded, 'Alergias e Intolerancias', textPrimary, iconColor: Colors.redAccent),
-              const SizedBox(height: 4),
-              Text('Selecciona todas las que apliquen', style: TextStyle(fontSize: 12, color: textSecondary)),
+              _buildSectionHeader(Icons.warning_amber_rounded, 'Alergias e Intolerancias Alimentarias', textPrimary, iconColor: AppTheme.accentCoral),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -362,25 +557,25 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                   return FilterChip(
                     label: Text(allergy),
                     selected: isSel,
-                    selectedColor: Colors.redAccent.withValues(alpha: 0.2),
-                    checkmarkColor: Colors.redAccent,
+                    selectedColor: AppTheme.accentCoral.withValues(alpha: 0.2),
+                    checkmarkColor: AppTheme.accentCoral,
                     labelStyle: TextStyle(
-                      color: isSel ? Colors.redAccent : textPrimary,
+                      color: isSel ? AppTheme.accentCoral : textPrimary,
                       fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
                     ),
                     onSelected: (val) {
                       setState(() {
                         if (allergy == 'Ninguna') {
                           _selectedAllergies.clear();
-                          _selectedAllergies.add('Ninguna');
+                          if (val) _selectedAllergies.add('Ninguna');
                         } else {
                           _selectedAllergies.remove('Ninguna');
                           if (val) {
                             _selectedAllergies.add(allergy);
                           } else {
                             _selectedAllergies.remove(allergy);
-                            if (_selectedAllergies.isEmpty) _selectedAllergies.add('Ninguna');
                           }
+                          if (_selectedAllergies.isEmpty) _selectedAllergies.add('Ninguna');
                         }
                       });
                     },
@@ -392,10 +587,9 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                 TextField(
                   controller: _otherAllergiesController,
                   decoration: InputDecoration(
-                    hintText: 'Escribe aquí qué otras alergias tienes...',
+                    hintText: 'Especifica otras alergias (ej. mariscos, ajonjolí)...',
                     filled: true,
                     fillColor: cardBg,
-                    prefixIcon: const Icon(Icons.edit_outlined, size: 18),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -403,8 +597,8 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
 
               const SizedBox(height: 24),
 
-              // 3. Antecedentes Médicos
-              _buildSectionHeader(Icons.health_and_safety_outlined, 'Antecedentes de Salud', textPrimary),
+              // 3. Patologías y Antecedentes
+              _buildSectionHeader(Icons.medical_information_rounded, 'Antecedentes de Salud y Patologías', textPrimary),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -424,15 +618,15 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                       setState(() {
                         if (pathology == 'Ninguna') {
                           _selectedPathologies.clear();
-                          _selectedPathologies.add('Ninguna');
+                          if (val) _selectedPathologies.add('Ninguna');
                         } else {
                           _selectedPathologies.remove('Ninguna');
                           if (val) {
                             _selectedPathologies.add(pathology);
                           } else {
                             _selectedPathologies.remove(pathology);
-                            if (_selectedPathologies.isEmpty) _selectedPathologies.add('Ninguna');
                           }
+                          if (_selectedPathologies.isEmpty) _selectedPathologies.add('Ninguna');
                         }
                       });
                     },
@@ -444,10 +638,9 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                 TextField(
                   controller: _otherPathologiesController,
                   decoration: InputDecoration(
-                    hintText: 'Escribe aquí qué otra patología o antecedente tienes...',
+                    hintText: 'Especifica antecedentes (ej. hipotiroidismo)...',
                     filled: true,
                     fillColor: cardBg,
-                    prefixIcon: const Icon(Icons.edit_outlined, size: 18),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -455,39 +648,91 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
 
               const SizedBox(height: 24),
 
-              // 4. Ingesta de Agua
-              _buildSectionHeader(Icons.water_drop_outlined, 'Ingesta de Agua Diaria', textPrimary, iconColor: Colors.blueAccent),
+              // 4. Parámetros del Sistema Experto (Frutas, Bebidas azucaradas, Comidas)
+              _buildSectionHeader(Icons.restaurant_rounded, 'Hábitos Dietéticos Clave (Sistema Experto)', textPrimary),
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Porciones de frutas y verduras / día: $_fruitsDaily',
+                        style: TextStyle(fontSize: 14, color: textPrimary)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: _fruitsDaily > 0 ? () => setState(() => _fruitsDaily--) : null,
+                  ),
+                  Text('$_fruitsDaily', style: TextStyle(fontWeight: FontWeight.bold, color: primaryGreen)),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: _fruitsDaily < 10 ? () => setState(() => _fruitsDaily++) : null,
+                  ),
+                ],
+              ),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Bebidas azucaradas / semana: $_sugaryDrinksWeekly',
+                        style: TextStyle(fontSize: 14, color: textPrimary)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: _sugaryDrinksWeekly > 0 ? () => setState(() => _sugaryDrinksWeekly--) : null,
+                  ),
+                  Text('$_sugaryDrinksWeekly', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.accentCoral)),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: () => setState(() => _sugaryDrinksWeekly++),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+              Text('Número de comidas al día:', style: TextStyle(fontSize: 13, color: textSecondary)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                children: [3, 4, 5, 6].map((count) {
+                  final isSel = _mealsPerDay == count;
+                  return ChoiceChip(
+                    label: Text('$count comidas'),
+                    selected: isSel,
+                    selectedColor: primaryGreen,
+                    labelStyle: TextStyle(color: isSel ? Colors.white : textPrimary),
+                    onSelected: (val) {
+                      if (val) setState(() => _mealsPerDay = count);
+                    },
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 24),
+
+              // 5. Hidratación y Descanso
+              _buildSectionHeader(Icons.water_drop_rounded, 'Hidratación y Descanso', textPrimary, iconColor: AppTheme.accentBlue),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('${_waterLiters.toStringAsFixed(1)} Litros / día',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primaryGreen)),
-                  Text('${(_waterLiters * 4).round()} vasos aprox.',
-                      style: TextStyle(fontSize: 12, color: textSecondary)),
+                  Text('Agua al día: ${_waterLiters.toStringAsFixed(1)} Litros', style: TextStyle(fontSize: 14, color: textPrimary)),
+                  Text('${(_waterLiters * 4).round()} vasos aprox', style: TextStyle(fontSize: 12, color: textSecondary)),
                 ],
               ),
               Slider(
                 value: _waterLiters,
                 min: 0.5,
                 max: 5.0,
-                divisions: 9,
-                activeColor: primaryGreen,
+                divisions: 18,
+                activeColor: AppTheme.accentBlue,
+                label: '${_waterLiters.toStringAsFixed(1)} L',
                 onChanged: (val) => setState(() => _waterLiters = val),
               ),
 
-              const SizedBox(height: 16),
-
-              // 5. Horas de Sueño
-              _buildSectionHeader(Icons.bedtime_outlined, 'Horas de Sueño Promedio', textPrimary, iconColor: Colors.indigoAccent),
-              const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('${_sleepHours.toStringAsFixed(1)} horas / noche',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: primaryGreen)),
-                  Text(_sleepHours >= 7 ? 'Buen descanso' : 'Requiere descanso',
-                      style: TextStyle(fontSize: 12, color: textSecondary)),
+                  Text('Sueño promedio: ${_sleepHours.toStringAsFixed(1)} horas/noche', style: TextStyle(fontSize: 14, color: textPrimary)),
                 ],
               ),
               Slider(
@@ -496,6 +741,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                 max: 12.0,
                 divisions: 16,
                 activeColor: primaryGreen,
+                label: '${_sleepHours.toStringAsFixed(1)} h',
                 onChanged: (val) => setState(() => _sleepHours = val),
               ),
 
@@ -583,7 +829,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
 
               const SizedBox(height: 24),
 
-              // 8. Campos de texto complementarios
+              // 8. Textos complementarios
               _buildSectionHeader(Icons.medication_outlined, 'Medicamentos o Suplementos', textPrimary),
               const SizedBox(height: 6),
               TextField(
@@ -604,7 +850,7 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                 controller: _foodPreferencesController,
                 maxLines: 2,
                 decoration: InputDecoration(
-                  hintText: 'Ej: Vegetariano, me encanta el pollo, odio las berenjenas...',
+                  hintText: 'Ej: Vegetariano, me encanta el pollo, no me gusta el brócoli...',
                   filled: true,
                   fillColor: cardBg,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -622,6 +868,37 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
                   filled: true,
                   fillColor: cardBg,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // 9. Consentimiento de datos de salud
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: _consentDataProcessing,
+                      activeColor: primaryGreen,
+                      onChanged: (val) => setState(() => _consentDataProcessing = val ?? false),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Doy mi consentimiento para el tratamiento de mis datos de salud, biométricos y hábitos con fines estrictamente clínicos y de seguimiento nutricional.',
+                          style: TextStyle(fontSize: 12, color: textSecondary, height: 1.3),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -658,12 +935,14 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
       children: [
         Icon(icon, size: 20, color: iconColor ?? AppTheme.primaryGreen),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-            color: textColor,
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
           ),
         ),
       ],

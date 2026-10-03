@@ -30,7 +30,7 @@ class SubscriptionService extends ChangeNotifier {
 
   SubscriptionService(this._apiService, this._storageService);
 
-  Future<void> fetchCurrentSubscription() async {
+  Future<void> fetchCurrentSubscription({String? userId}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -44,22 +44,33 @@ class SubscriptionService extends ChangeNotifier {
             status: _currentSubscription!.status,
             expiresAt: _currentSubscription!.expiresAt?.toIso8601String() ?? '',
             orderId: _currentSubscription!.paypalOrderId ?? '',
+            userId: userId,
           );
+        } else {
+          _currentSubscription = null;
+          await _storageService.clearLocalSubscription(userId: userId);
         }
       } else {
-        await _checkLocalSubscriptionFallback();
+        // El servidor confirmó que este usuario NO tiene suscripción activa
+        _currentSubscription = null;
+        await _storageService.clearLocalSubscription(userId: userId);
       }
     } catch (_) {
-      await _checkLocalSubscriptionFallback();
+      // En caso de fallo de red, sólo consultar si este usuario específico tenía respaldo local
+      await _checkLocalSubscriptionFallback(userId);
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> _checkLocalSubscriptionFallback() async {
+  Future<void> _checkLocalSubscriptionFallback(String? userId) async {
+    if (userId == null || userId.isEmpty) {
+      _currentSubscription = null;
+      return;
+    }
     try {
-      final local = await _storageService.getLocalSubscription();
+      final local = await _storageService.getLocalSubscription(userId: userId);
       final status = local['status'];
       final expiresStr = local['expires'];
       final order = local['order'];
@@ -85,6 +96,13 @@ class SubscriptionService extends ChangeNotifier {
     } catch (_) {
       _currentSubscription = null;
     }
+  }
+
+  void reset() {
+    _currentSubscription = null;
+    _errorMessage = null;
+    _isLoading = false;
+    notifyListeners();
   }
 
   Future<void> fetchPlans() async {
@@ -228,7 +246,7 @@ class SubscriptionService extends ChangeNotifier {
   }
 
   // Activa la suscripción Premium por 1 mes (30 días)
-  Future<bool> captureOrActivateSubscription(String orderId) async {
+  Future<bool> captureOrActivateSubscription(String orderId, {String? userId}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -269,6 +287,7 @@ class SubscriptionService extends ChangeNotifier {
       status: 'ACTIVE',
       expiresAt: expires.toIso8601String(),
       orderId: orderId,
+      userId: userId,
     );
 
     _isLoading = false;
@@ -276,7 +295,7 @@ class SubscriptionService extends ChangeNotifier {
     return true;
   }
 
-  Future<bool> cancelSubscription() async {
+  Future<bool> cancelSubscription({String? userId}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -285,7 +304,7 @@ class SubscriptionService extends ChangeNotifier {
       await _apiService.post('/subscriptions/cancel');
     } catch (_) {}
 
-    await _storageService.clearLocalSubscription();
+    await _storageService.clearLocalSubscription(userId: userId);
     _currentSubscription = null;
     _isLoading = false;
     notifyListeners();

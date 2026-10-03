@@ -14,6 +14,12 @@ import '../../services/subscription_service.dart';
 import '../anamnesis/anamnesis_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../subscriptions/subscriptions_screen.dart';
+import '../chat/carlitos_chat_screen.dart';
+import '../food/food_vision_screen.dart';
+import '../../services/ai_plan_mobile_service.dart';
+import '../../modo_offline/widgets/banner_sin_conexion.dart';
+import '../../modo_offline/conectividad_service.dart';
+import '../../modo_offline/cola_sincronizacion_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -40,7 +46,8 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<NotificationService>().startPolling();
       context.read<AppointmentService>().fetchAppointments();
       context.read<AppointmentService>().fetchNutritionists();
-      context.read<SubscriptionService>().fetchCurrentSubscription();
+      final currentUserId = context.read<AuthService>().currentUser?.id;
+      context.read<SubscriptionService>().fetchCurrentSubscription(userId: currentUserId);
       context.read<ActivityLogService>().recordLog(
         action: 'INICIO_SESION',
         description: 'Inicio de sesión en aplicación móvil',
@@ -148,16 +155,23 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
       body: SafeArea(
-        child: _buildSelectedTab(
-          authService: authService,
-          themeService: themeService,
-          patientService: patientService,
-          unreadCount: unreadCount,
-          isDark: isDark,
-          primaryGreen: primaryGreen,
-          cardBg: cardBg,
-          textPrimary: textPrimary,
-          textSecondary: textSecondary,
+        child: Column(
+          children: [
+            const BannerSinConexion(),
+            Expanded(
+              child: _buildSelectedTab(
+                authService: authService,
+                themeService: themeService,
+                patientService: patientService,
+                unreadCount: unreadCount,
+                isDark: isDark,
+                primaryGreen: primaryGreen,
+                cardBg: cardBg,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: Container(
@@ -188,7 +202,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _currentNavIndex = idx;
               });
               if (idx == 2) {
-                context.read<SubscriptionService>().fetchCurrentSubscription();
+                final currentUserId = context.read<AuthService>().currentUser?.id;
+                context.read<SubscriptionService>().fetchCurrentSubscription(userId: currentUserId);
                 context.read<SubscriptionService>().fetchPlans();
               }
               if (idx == 3) {
@@ -576,6 +591,116 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
+          // Módulos Inteligentes de IA (Chatbot Carlitos y Escanear Comida)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark
+                    ? [const Color(0xFF261D38), const Color(0xFF191224)]
+                    : [const Color(0xFFF3E8FF), const Color(0xFFE9D5FF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: const Color(0xFFA855F7).withValues(alpha: 0.35),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFA855F7),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Inteligencia Artificial Nutricional',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: textPrimary,
+                            ),
+                          ),
+                          Text(
+                            'Asistente Carlitos y Escaneo visual de platos',
+                            style: TextStyle(fontSize: 12, color: textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFA855F7),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const CarlitosChatScreen()),
+                          );
+                        },
+                        icon: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 18),
+                        label: const Text(
+                          'Carlitos IA',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryGreen,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const FoodVisionScreen()),
+                          );
+                        },
+                        icon: const Icon(Icons.camera_enhance_rounded, color: Colors.white, size: 18),
+                        label: const Text(
+                          'Escanear Plato',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
           // Card de Agendar Cita (Generar Cita)
           Container(
             width: double.infinity,
@@ -652,6 +777,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                _buildAppointmentsSection(context, isDark, textPrimary, textSecondary),
               ],
             ),
           ),
@@ -1655,15 +1782,22 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
+            final navBarPadding = MediaQuery.of(context).viewPadding.bottom;
+            final keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
+            final bottomPadding = keyboardPadding + (navBarPadding > 0 ? navBarPadding + 16 : 28.0);
+
+            return SafeArea(
+              top: false,
+              bottom: true,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 20,
+                  right: 20,
+                  top: 20,
+                  bottom: bottomPadding,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1728,6 +1862,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         onChanged: (val) {
                           setModalState(() {
                             selectedNutritionistId = val;
+                            if (val != null) {
+                              final match = apptService.nutritionists.where((x) => x.id == val);
+                              if (match.isNotEmpty) {
+                                selectedNutritionistName = match.first.fullName;
+                              }
+                            }
                           });
                         },
                       )
@@ -1909,23 +2049,36 @@ class _HomeScreenState extends State<HomeScreen> {
                                   selectedTime.minute,
                                 );
 
+                                final conectividad = context.read<ConectividadService>();
+                                final bool estaOffline = !conectividad.estaConectado;
+
                                 final success = await apptService.bookAppointment(
                                   nutritionistId: selectedNutritionistId!,
                                   scheduledAt: scheduledDateTime,
                                   reason: reasonController.text.trim(),
+                                  nutritionistName: selectedNutritionistName,
                                 );
 
                                 if (context.mounted) {
                                   Navigator.pop(context);
                                   if (success) {
-                                    context.read<NotificationService>().fetchNotifications();
-                                    context.read<NotificationService>().fetchUnreadCount();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('¡Cita solicitada con éxito! Queda pendiente de confirmación por tu especialista.'),
-                                        backgroundColor: Color(0xFF059669),
-                                      ),
-                                    );
+                                    if (estaOffline) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('📱 Cita guardada en cola sin conexión. Se sincronizará automáticamente cuando vuelva internet.'),
+                                          backgroundColor: Color(0xFFD97706),
+                                        ),
+                                      );
+                                    } else {
+                                      context.read<NotificationService>().fetchNotifications();
+                                      context.read<NotificationService>().fetchUnreadCount();
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('¡Cita solicitada con éxito! Queda pendiente de confirmación por tu especialista.'),
+                                          backgroundColor: Color(0xFF059669),
+                                        ),
+                                      );
+                                    }
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
@@ -1951,10 +2104,241 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-            );
-          },
-        );
-      },
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+  void _openWeeklyMenuModal(BuildContext context, PatientService patientService) {
+    final nutri = patientService.linkedNutritionist;
+    final themeService = context.read<ThemeService>();
+    final isDark = themeService.isDarkMode;
+    final primaryGreen = isDark ? AppTheme.primaryGreenDark : AppTheme.primaryGreen;
+    final cardBg = isDark ? AppTheme.darkCard : AppTheme.lightCard;
+    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
+    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+
+    // Validación estricta según especificación: requiere vinculación con nutricionista
+    if (nutri == null) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Icon(Icons.lock_person_rounded, color: AppTheme.accentOrange, size: 24),
+              const SizedBox(width: 8),
+              const Text('Vincúlate con tu Nutri', style: TextStyle(fontSize: 16)),
+            ],
+          ),
+          content: const Text(
+            'El menú semanal personalizado requiere estar vinculado/a a un especialista nutricional con plan aprobado. Ve a la pestaña "Nutri" e ingresa el código proporcionado por tu especialista.',
+            style: TextStyle(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cerrar'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: primaryGreen),
+              onPressed: () {
+                Navigator.pop(ctx);
+                setState(() => _currentNavIndex = 1); // Cambiar a pestaña Nutri
+              },
+              child: const Text('Ir a Nutri', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Modal con el Menú Semanal
+    final planService = context.read<AIPlanMobileService>();
+    final authService = context.read<AuthService>();
+    planService.fetchCurrentWeeklyMenu();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final days = planService.weeklyMenu;
+          final isLoading = planService.isLoading;
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.82,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isDark ? AppTheme.darkSidebar : AppTheme.lightSidebar,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Menú Semanal Personalizado',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textPrimary),
+                        ),
+                        Text(
+                          'Especialista: ${nutri.nutritionistName}',
+                          style: TextStyle(fontSize: 12, color: primaryGreen, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                    ),
+                    onPressed: isLoading
+                        ? null
+                        : () async {
+                            final userId = authService.currentUser?.id;
+                            if (userId != null) {
+                              setModalState(() {});
+                              final ok = await planService.generateWeeklyMenu(userId);
+                              setModalState(() {});
+                              if (!ok && planService.errorMessage != null && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(planService.errorMessage!),
+                                    backgroundColor: Colors.redAccent,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                    icon: isLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome_rounded, size: 18),
+                    label: Text(
+                      isLoading ? 'Generando menú...' : 'Generar / Regenerar Menú con IA',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: days.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.restaurant_menu_rounded, size: 48, color: textSecondary),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Aún no has generado tu menú semanal.',
+                                style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Presiona "Generar Menú con IA" para armar tu plan de 7 días.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: textSecondary, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: days.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
+                          itemBuilder: (context, idx) {
+                            final d = days[idx];
+                            return Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        d.day,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                          color: primaryGreen,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${d.dailyCalories.toStringAsFixed(0)} kcal',
+                                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: textSecondary),
+                                      ),
+                                    ],
+                                  ),
+                                  const Divider(height: 16),
+                                  ...d.meals.map((m) => Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 4),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${m.mealName}: ',
+                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: textPrimary),
+                                            ),
+                                            Expanded(
+                                              child: Text(
+                                                m.foods.join(', '),
+                                                style: TextStyle(fontSize: 12, color: textSecondary),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -2015,6 +2399,69 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () => context.read<RecipeService>().fetchMyPlanRecipes(),
                 ),
               ],
+            ),
+            const SizedBox(height: 14),
+
+            // Card Destacada: Menú Semanal (7 Días) IA
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [const Color(0xFF142C21), const Color(0xFF0F1E17)]
+                      : [const Color(0xFFE8F5E9), const Color(0xFFDCEDC8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: primaryGreen.withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: primaryGreen.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.calendar_month_rounded, color: primaryGreen, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Menú Semanal (7 Días)',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          nutri != null
+                              ? 'Organizado con tus recetas aprobadas por ${nutri.nutritionistName}'
+                              : 'Requiere vincularte con tu especialista',
+                          style: TextStyle(fontSize: 11, color: textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                    onPressed: () => _openWeeklyMenuModal(context, patientService),
+                    child: const Text('Ver Menú', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -2343,10 +2790,13 @@ class _HomeScreenState extends State<HomeScreen> {
           maxChildSize: 0.95,
           expand: false,
           builder: (_, scrollController) {
-            return SingleChildScrollView(
-              controller: scrollController,
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
+            return SafeArea(
+              top: false,
+              bottom: true,
+              child: SingleChildScrollView(
+                controller: scrollController,
+                padding: EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 28.0 + MediaQuery.of(context).viewPadding.bottom),
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Center(
@@ -2439,8 +2889,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 30),
                 ],
               ),
-            );
-          },
+            ),
+          );
+        },
         );
       },
     );
@@ -2718,6 +3169,198 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildAppointmentsSection(
+    BuildContext context,
+    bool isDark,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    final apptService = context.watch<AppointmentService>();
+    final colaService = context.watch<ColaSincronizacionService>();
+    final citas = apptService.appointments;
+
+    if (citas.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline, size: 16, color: textSecondary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'No tienes citas programadas actualmente.',
+                style: TextStyle(fontSize: 12, color: textSecondary),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Tus Citas Registradas',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: textPrimary,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '${citas.length}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ...citas.take(4).map((appt) {
+          final isPendingOffline = appt.isOfflinePending;
+          final isConflict = appt.isConflictError;
+          final isConfirmed = appt.status == 'CONFIRMED';
+
+          Color cardBgColor;
+          Color borderColor;
+          Color statusTextColor;
+          String statusText;
+          IconData statusIcon;
+
+          if (isConflict) {
+            cardBgColor = isDark ? const Color(0xFF3B1212) : const Color(0xFFFEF2F2);
+            borderColor = const Color(0xFFEF4444);
+            statusTextColor = const Color(0xFFDC2626);
+            statusText = 'Conflicto de horario';
+            statusIcon = Icons.error_rounded;
+          } else if (isPendingOffline) {
+            cardBgColor = isDark ? const Color(0xFF38240D) : const Color(0xFFFFFBEB);
+            borderColor = const Color(0xFFF59E0B);
+            statusTextColor = const Color(0xFFD97706);
+            statusText = '⏳ En cola offline';
+            statusIcon = Icons.cloud_off_rounded;
+          } else if (isConfirmed) {
+            cardBgColor = isDark ? const Color(0xFF10281E) : const Color(0xFFECFDF5);
+            borderColor = const Color(0xFF10B981);
+            statusTextColor = const Color(0xFF059669);
+            statusText = 'Confirmada';
+            statusIcon = Icons.check_circle_rounded;
+          } else {
+            cardBgColor = isDark ? const Color(0xFF132338) : const Color(0xFFEFF6FF);
+            borderColor = const Color(0xFF3B82F6);
+            statusTextColor = const Color(0xFF2563EB);
+            statusText = 'Pendiente';
+            statusIcon = Icons.schedule_rounded;
+          }
+
+          final fechaFormateada =
+              '${appt.scheduledAt.day.toString().padLeft(2, '0')}/${appt.scheduledAt.month.toString().padLeft(2, '0')}/${appt.scheduledAt.year} - ${appt.scheduledAt.hour.toString().padLeft(2, '0')}:${appt.scheduledAt.minute.toString().padLeft(2, '0')}';
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: cardBgColor,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: borderColor.withValues(alpha: 0.6)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(statusIcon, size: 16, color: statusTextColor),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        appt.nutritionistName ?? 'Especialista Nutricional',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: borderColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: statusTextColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today_rounded, size: 12, color: textSecondary),
+                    const SizedBox(width: 5),
+                    Text(
+                      fechaFormateada,
+                      style: TextStyle(fontSize: 11, color: textSecondary),
+                    ),
+                  ],
+                ),
+                if (isConflict) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    appt.cancellationReason ?? 'El especialista ya tiene una cita agendada en ese horario. Por favor selecciona otro horario.',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFFDC2626), fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        foregroundColor: const Color(0xFFDC2626),
+                      ),
+                      onPressed: () {
+                        colaService.descartarConflicto(appt.id);
+                        apptService.fetchAppointments();
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded, size: 14),
+                      label: const Text('Descartar', style: TextStyle(fontSize: 11)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
   void _showLogoutDialog(BuildContext context, AuthService authService) {
     showDialog(
       context: context,
@@ -2737,8 +3380,10 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               Navigator.of(ctx).pop();
               final logService = context.read<ActivityLogService>();
+              final subService = context.read<SubscriptionService>();
               logService.clearLogs();
               await logService.clearLogsOnServer();
+              subService.reset();
               await authService.logout();
             },
             child: const Text('Salir'),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/theme.dart';
 import '../../models/subscription_model.dart';
+import '../../services/auth_service.dart';
 import '../../services/subscription_service.dart';
 import '../../services/theme_service.dart';
 import 'ai_module_screen.dart';
@@ -23,7 +24,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SubscriptionService>().fetchCurrentSubscription();
+      final user = context.read<AuthService>().currentUser;
+      context.read<SubscriptionService>().fetchCurrentSubscription(userId: user?.id);
       context.read<SubscriptionService>().fetchPlans();
     });
   }
@@ -107,23 +109,27 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           });
         }
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 20,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        final bottomBarPadding = MediaQuery.of(context).viewPadding.bottom;
+        return SafeArea(
+          top: false,
+          bottom: true,
+          child: Container(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + (bottomBarPadding > 0 ? bottomBarPadding : 8)),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               // Drag handle
               Center(
                 child: Container(
@@ -354,11 +360,15 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                             setModalState(() => _isProcessingPayment = true);
 
                             final subService = context.read<SubscriptionService>();
+                            final authService = context.read<AuthService>();
                             final scaffoldMessenger = ScaffoldMessenger.of(context);
                             final navigator = Navigator.of(context);
 
                             final orderId = _activeOrder?.orderId ?? 'PAYPAL_ORDER';
-                            final success = await subService.captureOrActivateSubscription(orderId);
+                            final success = await subService.captureOrActivateSubscription(
+                              orderId,
+                              userId: authService.currentUser?.id,
+                            );
 
                             if (!mounted) return;
                             setModalState(() => _isProcessingPayment = false);
@@ -430,10 +440,11 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               const SizedBox(height: 10),
             ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -451,7 +462,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
 
     return RefreshIndicator(
       onRefresh: () async {
-        await subService.fetchCurrentSubscription();
+        final user = context.read<AuthService>().currentUser;
+        await subService.fetchCurrentSubscription(userId: user?.id);
         await subService.fetchPlans();
       },
       color: primaryGreen,

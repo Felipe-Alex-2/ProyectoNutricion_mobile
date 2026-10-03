@@ -14,6 +14,9 @@ class AppointmentModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  bool get isOfflinePending => status == 'PENDIENTE_OFFLINE' || id.startsWith('offline_');
+  bool get isConflictError => status == 'ERROR_CONFLICTO';
+
   AppointmentModel({
     required this.id,
     this.tenantId,

@@ -3,11 +3,17 @@ import '../models/user.dart';
 import 'api_service.dart';
 import 'storage_service.dart';
 
+import '../modo_offline/cache_local_service.dart';
+import '../modo_offline/cola_sincronizacion_service.dart';
+import '../modo_offline/elemento_cola.dart';
+
 enum AuthStatus { uninitialized, authenticated, unauthenticated, authenticating }
 
 class AuthService extends ChangeNotifier {
   final ApiService _apiService;
   final StorageService _storageService;
+  final CacheLocalService? cacheService;
+  final ColaSincronizacionService? colaService;
 
   User? _currentUser;
   AuthStatus _status = AuthStatus.uninitialized;
@@ -18,7 +24,12 @@ class AuthService extends ChangeNotifier {
   bool get isAuthenticated => _status == AuthStatus.authenticated;
   String? get errorMessage => _errorMessage;
 
-  AuthService(this._apiService, this._storageService) {
+  AuthService(
+    this._apiService,
+    this._storageService, {
+    this.cacheService,
+    this.colaService,
+  }) {
     _initialize();
   }
 
@@ -33,11 +44,25 @@ class AuthService extends ChangeNotifier {
     try {
       final data = await _apiService.get('/users/me');
       _currentUser = User.fromJson(data);
+      _apiService.currentUserId = _currentUser?.id;
+      await cacheService?.guardar('/users/me', data, userId: _currentUser?.id);
       _status = AuthStatus.authenticated;
-    } catch (_) {
-      await _storageService.clearTokens();
-      _currentUser = null;
-      _status = AuthStatus.unauthenticated;
+    } catch (e) {
+      if (e is ApiException && e.statusCode == 401) {
+        await _storageService.clearTokens();
+        _currentUser = null;
+        _status = AuthStatus.unauthenticated;
+      } else {
+        // Modo offline: leer el perfil desde el almacenamiento local
+        final cached = await cacheService?.obtener('/users/me');
+        if (cached != null) {
+          _currentUser = User.fromJson(cached);
+          _apiService.currentUserId = _currentUser?.id;
+          _status = AuthStatus.authenticated;
+        } else {
+          _status = AuthStatus.unauthenticated;
+        }
+      }
     }
     notifyListeners();
   }
@@ -57,11 +82,14 @@ class AuthService extends ChangeNotifier {
       final accessToken = response['access_token'] as String;
       final refreshToken = response['refresh_token'] as String;
       _currentUser = User.fromJson(response['user']);
+      _apiService.currentUserId = _currentUser?.id;
 
       await _storageService.saveTokens(
         accessToken: accessToken,
         refreshToken: refreshToken,
       );
+
+      await cacheService?.guardar('/users/me', response['user'], userId: _currentUser?.id);
 
       _status = AuthStatus.authenticated;
       notifyListeners();
@@ -107,8 +135,40 @@ class AuthService extends ChangeNotifier {
       if (fullName != null) body['full_name'] = fullName;
       if (email != null) body['email'] = email;
 
-      final response = await _apiService.put('/users/me', body: body);
-      _currentUser = User.fromJson(response);
+      final uid = _currentUser?.id ?? '';
+
+      // Si no hay conexión o falla la red, guardar en cola offline y actualizar local
+      try {
+        final response = await _apiService.put('/users/me', body: body);
+        _currentUser = User.fromJson(response);
+        await cacheService?.guardar('/users/me', response, userId: uid);
+      } catch (e) {
+        final cola = colaService;
+        final user = _currentUser;
+        if (cola != null && user != null) {
+          final elemento = ElementoCola(
+            id: 'offline_profile_${DateTime.now().millisecondsSinceEpoch}',
+            userId: uid,
+            metodo: 'PUT',
+            endpoint: '/users/me',
+            tipoAccion: 'ACTUALIZAR_PERFIL',
+            descripcionHumana: 'Actualizar perfil de usuario',
+            cuerpo: body,
+            fechaCreacion: DateTime.now(),
+          );
+          await cola.encolar(elemento);
+
+          // Actualizar modelo en memoria
+          final updatedJson = user.toJson();
+          if (fullName != null) updatedJson['full_name'] = fullName;
+          if (email != null) updatedJson['email'] = email;
+          _currentUser = User.fromJson(updatedJson);
+          await cacheService?.guardar('/users/me', updatedJson, userId: uid);
+        } else {
+          rethrow;
+        }
+      }
+
       notifyListeners();
       return true;
     } catch (e) {
@@ -158,13 +218,20 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final uid = _currentUser?.id;
     try {
       await _apiService.delete('/activity-logs');
       await _apiService.post('/auth/logout?client_platform=mobile&clear_logs=true');
     } catch (_) {}
 
+    if (uid != null) {
+      await cacheService?.limpiarCacheUsuario(uid);
+      await colaService?.limpiarColaUsuario(uid);
+      await _storageService.clearLocalSubscription(userId: uid);
+    }
     await _storageService.clearTokens();
     _currentUser = null;
+    _apiService.currentUserId = null;
     _status = AuthStatus.unauthenticated;
     notifyListeners();
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../services/subscription_service.dart';
 import '../../services/theme_service.dart';
 
 class AiModuleScreen extends StatelessWidget {
@@ -24,6 +25,9 @@ class AiModuleScreen extends StatelessWidget {
     final themeService = context.watch<ThemeService>();
     final isDark = themeService.isDarkMode;
 
+    final subService = context.watch<SubscriptionService>();
+    final isPremium = subService.isPremium;
+
     final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
     final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
 
@@ -45,222 +49,249 @@ class AiModuleScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 28.0),
-        child: Column(
-          children: [
-            // Floating Hero Icon
-            Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 110,
-                    height: 110,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accentColor.withValues(alpha: 0.12),
-                    ),
-                  ),
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accentColor,
-                      boxShadow: [
-                        BoxShadow(
-                          color: accentColor.withValues(alpha: 0.35),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Icon(icon, color: Colors.white, size: 40),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Badge "En desarrollo"
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: accentColor, width: 1.5),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.construction_rounded, size: 16, color: accentColor),
-                  const SizedBox(width: 6),
-                  Text(
-                    'MÓDULO EN DESARROLLO • PRÓXIMAMENTE',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: accentColor,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Title and Subtitle
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: textPrimary,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: textSecondary,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 28),
-
-            // Explanation Card (Estilo con Borde Fuerte y Fondo Claro)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(22.0),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF2C1E0A)
-                    : const Color(0xFFFFFBEB),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: isDark ? const Color(0xFF6B4B10) : const Color(0xFFFDE68A),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: accentColor.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.auto_awesome_rounded, color: accentColor, size: 20),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Capacidades de IA en Integración',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: textPrimary,
-                        ),
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+          child: Column(
+            children: [
+              // Floating Hero Icon
+              Center(
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accentColor.withValues(alpha: 0.12),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  ...upcomingFeatures.map(
-                    (feature) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            margin: const EdgeInsets.only(top: 2),
-                            width: 18,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              color: accentColor.withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(Icons.check, size: 12, color: accentColor),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              feature,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: textPrimary,
-                                height: 1.35,
-                              ),
-                            ),
+                    ),
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accentColor,
+                        boxShadow: [
+                          BoxShadow(
+                            color: accentColor.withValues(alpha: 0.35),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
+                      child: Icon(icon, color: Colors.white, size: 40),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
-            // Premium Member Notice
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.white.withValues(alpha: 0.8),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: accentColor.withValues(alpha: 0.4), width: 1.0),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.verified_rounded, color: accentColor, size: 22),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      '¡Tu suscripción Premium está activa! Tienes prioridad absoluta para el lanzamiento de este módulo.',
+              // Badge "En desarrollo"
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: accentColor, width: 1.5),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.construction_rounded, size: 16, color: accentColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      'MÓDULO EN DESARROLLO • PRÓXIMAMENTE',
                       style: TextStyle(
-                        fontSize: 12.5,
-                        color: isDark ? Colors.white70 : textPrimary,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: accentColor,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
+              const SizedBox(height: 16),
 
-            // Back Button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accentColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  elevation: 0,
+              // Title and Subtitle
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: textPrimary,
                 ),
-                child: const Text(
-                  'Volver a Suscripciones',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // Explanation Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(22.0),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF2C1E0A)
+                      : const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF6B4B10) : const Color(0xFFFDE68A),
+                    width: 1.2,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accentColor.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.auto_awesome_rounded, color: accentColor, size: 20),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Capacidades de IA en Integración',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ...upcomingFeatures.map(
+                      (feature) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(top: 2),
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: accentColor.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.check, size: 12, color: accentColor),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                feature,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: textPrimary,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Notice Card (Dynamic: reflects real subscription status)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  color: isPremium
+                      ? (isDark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : Colors.white.withValues(alpha: 0.8))
+                      : (isDark
+                          ? const Color(0xFF3B2A10).withValues(alpha: 0.3)
+                          : const Color(0xFFFEF3C7)),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isPremium
+                        ? accentColor.withValues(alpha: 0.4)
+                        : const Color(0xFFF59E0B).withValues(alpha: 0.6),
+                    width: 1.0,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isPremium ? Icons.verified_rounded : Icons.lock_outline_rounded,
+                      color: isPremium ? accentColor : const Color(0xFFD97706),
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        isPremium
+                            ? '¡Tu suscripción Premium está activa! Tienes prioridad absoluta para el lanzamiento de este módulo.'
+                            : 'Módulo reservado para miembros Premium. Activa tu suscripción para obtener acceso prioritario cuando esté disponible.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: isDark ? Colors.white70 : textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            8,
+            24,
+            16 + (MediaQuery.of(context).viewPadding.bottom > 0 ? 0 : 8),
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Volver a Suscripciones',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

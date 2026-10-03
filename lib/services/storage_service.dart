@@ -36,16 +36,32 @@ class StorageService {
     required String status,
     required String expiresAt,
     required String orderId,
+    String? userId,
   }) async {
-    await _storage.write(key: 'sub_status', value: status);
-    await _storage.write(key: 'sub_expires', value: expiresAt);
-    await _storage.write(key: 'sub_order', value: orderId);
+    // Limpiar claves legacy globales para evitar contaminación
+    await _storage.delete(key: 'sub_status');
+    await _storage.delete(key: 'sub_expires');
+    await _storage.delete(key: 'sub_order');
+
+    if (userId != null && userId.isNotEmpty) {
+      await _storage.write(key: 'sub_${userId}_status', value: status);
+      await _storage.write(key: 'sub_${userId}_expires', value: expiresAt);
+      await _storage.write(key: 'sub_${userId}_order', value: orderId);
+    }
   }
 
-  Future<Map<String, String?>> getLocalSubscription() async {
-    final status = await _storage.read(key: 'sub_status');
-    final expires = await _storage.read(key: 'sub_expires');
-    final order = await _storage.read(key: 'sub_order');
+  Future<Map<String, String?>> getLocalSubscription({String? userId}) async {
+    // Limpiar claves legacy globales
+    await _storage.delete(key: 'sub_status');
+    await _storage.delete(key: 'sub_expires');
+    await _storage.delete(key: 'sub_order');
+
+    if (userId == null || userId.isEmpty) {
+      return {};
+    }
+    final status = await _storage.read(key: 'sub_${userId}_status');
+    final expires = await _storage.read(key: 'sub_${userId}_expires');
+    final order = await _storage.read(key: 'sub_${userId}_order');
     return {
       'status': status,
       'expires': expires,
@@ -53,9 +69,14 @@ class StorageService {
     };
   }
 
-  Future<void> clearLocalSubscription() async {
+  Future<void> clearLocalSubscription({String? userId}) async {
     await _storage.delete(key: 'sub_status');
     await _storage.delete(key: 'sub_expires');
     await _storage.delete(key: 'sub_order');
+    if (userId != null && userId.isNotEmpty) {
+      await _storage.delete(key: 'sub_${userId}_status');
+      await _storage.delete(key: 'sub_${userId}_expires');
+      await _storage.delete(key: 'sub_${userId}_order');
+    }
   }
 }
