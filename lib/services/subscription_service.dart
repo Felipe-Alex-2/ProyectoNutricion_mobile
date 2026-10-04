@@ -30,7 +30,15 @@ class SubscriptionService extends ChangeNotifier {
 
   SubscriptionService(this._apiService, this._storageService);
 
+  void reset() {
+    _currentSubscription = null;
+    _errorMessage = null;
+    _isLoading = false;
+    notifyListeners();
+  }
+
   Future<void> fetchCurrentSubscription({String? userId}) async {
+    _currentSubscription = null;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -38,12 +46,15 @@ class SubscriptionService extends ChangeNotifier {
     try {
       final response = await _apiService.get('/subscriptions/current');
       if (response != null && response is Map<String, dynamic>) {
-        _currentSubscription = Subscription.fromJson(response);
-        if (_currentSubscription != null && _currentSubscription!.isPremium) {
+        final sub = Subscription.fromJson(response);
+        // Validar estrictamente que la suscripción pertenezca a ESTE usuario y sea CLIENTE_PREMIUM
+        final matchesUser = userId == null || sub.userId == null || sub.userId == userId;
+        if (sub.isPremium && matchesUser) {
+          _currentSubscription = sub;
           await _storageService.saveLocalSubscription(
-            status: _currentSubscription!.status,
-            expiresAt: _currentSubscription!.expiresAt?.toIso8601String() ?? '',
-            orderId: _currentSubscription!.paypalOrderId ?? '',
+            status: sub.status,
+            expiresAt: sub.expiresAt?.toIso8601String() ?? '',
+            orderId: sub.paypalOrderId ?? '',
             userId: userId,
           );
         } else {
@@ -96,13 +107,6 @@ class SubscriptionService extends ChangeNotifier {
     } catch (_) {
       _currentSubscription = null;
     }
-  }
-
-  void reset() {
-    _currentSubscription = null;
-    _errorMessage = null;
-    _isLoading = false;
-    notifyListeners();
   }
 
   Future<void> fetchPlans() async {

@@ -140,6 +140,28 @@ class NotificationService extends ChangeNotifier {
     }
   }
 
+  Future<bool> sendNotification({
+    required String userId,
+    required String title,
+    required String message,
+    required String type,
+    String? referenceId,
+  }) async {
+    try {
+      final res = await _apiService.post('/notifications/send', body: {
+        'user_id': userId,
+        'title': title,
+        'message': message,
+        'type': type,
+        'reference_id': referenceId,
+      });
+      return res != null;
+    } catch (e) {
+      debugPrint('Error sending notification: $e');
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     _pollingTimer?.cancel();

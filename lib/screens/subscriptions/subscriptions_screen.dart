@@ -7,6 +7,7 @@ import '../../services/auth_service.dart';
 import '../../services/subscription_service.dart';
 import '../../services/theme_service.dart';
 import 'ai_module_screen.dart';
+import '../food/food_vision_screen.dart';
 
 class SubscriptionsScreen extends StatefulWidget {
   const SubscriptionsScreen({super.key});
@@ -585,17 +586,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 if (isPremium) {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => const AiModuleScreen(
-                        title: 'Estimación Nutricional de Alimentos con IA',
-                        subtitle: 'Análisis automatizado de macronutrientes y aporte energético.',
-                        icon: Icons.photo_camera_rounded,
-                        accentColor: Color(0xFFD9A441),
-                        upcomingFeatures: [
-                          'Estimación de calorías (kcal), proteínas, carbohidratos y grasas con reconocimiento fotográfico',
-                          'Cálculo de equivalentes nutricionales y densidad calórica',
-                          'Integración con tu registro de hábitos y anamnesis',
-                        ],
-                      ),
+                      builder: (_) => const FoodVisionScreen(),
                     ),
                   );
                 } else {

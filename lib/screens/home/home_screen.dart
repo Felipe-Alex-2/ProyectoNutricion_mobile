@@ -15,11 +15,9 @@ import '../anamnesis/anamnesis_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../subscriptions/subscriptions_screen.dart';
 import '../chat/carlitos_chat_screen.dart';
-import '../food/food_vision_screen.dart';
 import '../../services/ai_plan_mobile_service.dart';
 import '../../modo_offline/widgets/banner_sin_conexion.dart';
 import '../../modo_offline/conectividad_service.dart';
-import '../../modo_offline/cola_sincronizacion_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -155,21 +153,30 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            const BannerSinConexion(),
-            Expanded(
-              child: _buildSelectedTab(
-                authService: authService,
-                themeService: themeService,
-                patientService: patientService,
-                unreadCount: unreadCount,
-                isDark: isDark,
-                primaryGreen: primaryGreen,
-                cardBg: cardBg,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-              ),
+            Column(
+              children: [
+                const BannerSinConexion(),
+                Expanded(
+                  child: _buildSelectedTab(
+                    authService: authService,
+                    themeService: themeService,
+                    patientService: patientService,
+                    unreadCount: unreadCount,
+                    isDark: isDark,
+                    primaryGreen: primaryGreen,
+                    cardBg: cardBg,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            Positioned(
+              right: 0,
+              top: MediaQuery.of(context).size.height * 0.42,
+              child: _buildFloatingCarlitosButton(context, isDark),
             ),
           ],
         ),
@@ -237,6 +244,91 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icon(Icons.person_outline_rounded, color: textSecondary),
                 selectedIcon: Icon(Icons.person_rounded, color: primaryGreen),
                 label: 'Perfil',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFloatingCarlitosButton(BuildContext context, bool isDark) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CarlitosChatScreen()),
+        );
+      },
+      child: Material(
+        elevation: 8,
+        shadowColor: const Color(0xFFA855F7).withValues(alpha: 0.4),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          bottomLeft: Radius.circular(20),
+        ),
+        color: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF9333EA), Color(0xFFA855F7)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(20),
+              bottomLeft: Radius.circular(20),
+            ),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.35),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFA855F7).withValues(alpha: 0.35),
+                blurRadius: 10,
+                offset: const Offset(-2, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.smart_toy_rounded,
+                  color: Color(0xFF9333EA),
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Carlitos IA',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  Text(
+                    'Asistente',
+                    style: TextStyle(
+                      color: Color(0xFFF3E8FF),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -591,116 +683,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Módulos Inteligentes de IA (Chatbot Carlitos y Escanear Comida)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isDark
-                    ? [const Color(0xFF261D38), const Color(0xFF191224)]
-                    : [const Color(0xFFF3E8FF), const Color(0xFFE9D5FF)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: const Color(0xFFA855F7).withValues(alpha: 0.35),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 14,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFA855F7),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Inteligencia Artificial Nutricional',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: textPrimary,
-                            ),
-                          ),
-                          Text(
-                            'Asistente Carlitos y Escaneo visual de platos',
-                            style: TextStyle(fontSize: 12, color: textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFA855F7),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const CarlitosChatScreen()),
-                          );
-                        },
-                        icon: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 18),
-                        label: const Text(
-                          'Carlitos IA',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryGreen,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const FoodVisionScreen()),
-                          );
-                        },
-                        icon: const Icon(Icons.camera_enhance_rounded, color: Colors.white, size: 18),
-                        label: const Text(
-                          'Escanear Plato',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
           // Card de Agendar Cita (Generar Cita)
           Container(
             width: double.infinity,
@@ -777,8 +759,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                _buildAppointmentsSection(context, isDark, textPrimary, textSecondary),
               ],
             ),
           ),
@@ -1761,13 +1741,33 @@ class _HomeScreenState extends State<HomeScreen> {
     DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
     TimeOfDay selectedTime = const TimeOfDay(hour: 10, minute: 0);
     final TextEditingController reasonController = TextEditingController();
+
+    // Map deduplicado de nutricionistas disponibles
+    final Map<String, String> nutriMap = {};
+    for (final n in apptService.nutritionists) {
+      if (n.id.isNotEmpty) {
+        nutriMap[n.id] = n.fullName;
+      }
+    }
+    if (patientService.linkedNutritionist != null) {
+      final ln = patientService.linkedNutritionist!;
+      if (ln.nutritionistId.isNotEmpty) {
+        nutriMap[ln.nutritionistId] = ln.nutritionistName;
+      }
+    }
+
     String? selectedNutritionistId = patientService.linkedNutritionist?.nutritionistId;
     String? selectedNutritionistName = patientService.linkedNutritionist?.nutritionistName;
 
-    // Si aún no hay selección y hay nutricionistas disponibles
-    if (selectedNutritionistId == null && apptService.nutritionists.isNotEmpty) {
-      selectedNutritionistId = apptService.nutritionists.first.id;
-      selectedNutritionistName = apptService.nutritionists.first.fullName;
+    // Si aún no hay selección válida y hay nutricionistas disponibles
+    if (selectedNutritionistId == null || !nutriMap.containsKey(selectedNutritionistId)) {
+      if (nutriMap.isNotEmpty) {
+        selectedNutritionistId = nutriMap.keys.first;
+        selectedNutritionistName = nutriMap[selectedNutritionistId];
+      } else {
+        selectedNutritionistId = null;
+        selectedNutritionistName = null;
+      }
     }
 
     bool isSubmitting = false;
@@ -1839,9 +1839,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary),
                     ),
                     const SizedBox(height: 6),
-                    if (apptService.nutritionists.isNotEmpty)
+                    if (nutriMap.isNotEmpty)
                       DropdownButtonFormField<String>(
-                        initialValue: selectedNutritionistId,
+                        initialValue: nutriMap.containsKey(selectedNutritionistId)
+                            ? selectedNutritionistId
+                            : (nutriMap.isNotEmpty ? nutriMap.keys.first : null),
                         dropdownColor: cardBg,
                         decoration: InputDecoration(
                           prefixIcon: Icon(Icons.person_rounded, color: primaryGreen),
@@ -1853,20 +1855,17 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         ),
-                        items: apptService.nutritionists.map((n) {
+                        items: nutriMap.entries.map((entry) {
                           return DropdownMenuItem<String>(
-                            value: n.id,
-                            child: Text(n.fullName, style: TextStyle(color: textPrimary, fontSize: 14)),
+                            value: entry.key,
+                            child: Text(entry.value, style: TextStyle(color: textPrimary, fontSize: 14)),
                           );
                         }).toList(),
                         onChanged: (val) {
                           setModalState(() {
                             selectedNutritionistId = val;
-                            if (val != null) {
-                              final match = apptService.nutritionists.where((x) => x.id == val);
-                              if (match.isNotEmpty) {
-                                selectedNutritionistName = match.first.fullName;
-                              }
+                            if (val != null && nutriMap.containsKey(val)) {
+                              selectedNutritionistName = nutriMap[val];
                             }
                           });
                         },
@@ -3165,198 +3164,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-      ],
-    );
-  }
-
-  Widget _buildAppointmentsSection(
-    BuildContext context,
-    bool isDark,
-    Color textPrimary,
-    Color textSecondary,
-  ) {
-    final apptService = context.watch<AppointmentService>();
-    final colaService = context.watch<ColaSincronizacionService>();
-    final citas = apptService.appointments;
-
-    if (citas.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.white.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.info_outline, size: 16, color: textSecondary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'No tienes citas programadas actualmente.',
-                style: TextStyle(fontSize: 12, color: textSecondary),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Tus Citas Registradas',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: textPrimary,
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '${citas.length}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2563EB),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        ...citas.take(4).map((appt) {
-          final isPendingOffline = appt.isOfflinePending;
-          final isConflict = appt.isConflictError;
-          final isConfirmed = appt.status == 'CONFIRMED';
-
-          Color cardBgColor;
-          Color borderColor;
-          Color statusTextColor;
-          String statusText;
-          IconData statusIcon;
-
-          if (isConflict) {
-            cardBgColor = isDark ? const Color(0xFF3B1212) : const Color(0xFFFEF2F2);
-            borderColor = const Color(0xFFEF4444);
-            statusTextColor = const Color(0xFFDC2626);
-            statusText = 'Conflicto de horario';
-            statusIcon = Icons.error_rounded;
-          } else if (isPendingOffline) {
-            cardBgColor = isDark ? const Color(0xFF38240D) : const Color(0xFFFFFBEB);
-            borderColor = const Color(0xFFF59E0B);
-            statusTextColor = const Color(0xFFD97706);
-            statusText = '⏳ En cola offline';
-            statusIcon = Icons.cloud_off_rounded;
-          } else if (isConfirmed) {
-            cardBgColor = isDark ? const Color(0xFF10281E) : const Color(0xFFECFDF5);
-            borderColor = const Color(0xFF10B981);
-            statusTextColor = const Color(0xFF059669);
-            statusText = 'Confirmada';
-            statusIcon = Icons.check_circle_rounded;
-          } else {
-            cardBgColor = isDark ? const Color(0xFF132338) : const Color(0xFFEFF6FF);
-            borderColor = const Color(0xFF3B82F6);
-            statusTextColor = const Color(0xFF2563EB);
-            statusText = 'Pendiente';
-            statusIcon = Icons.schedule_rounded;
-          }
-
-          final fechaFormateada =
-              '${appt.scheduledAt.day.toString().padLeft(2, '0')}/${appt.scheduledAt.month.toString().padLeft(2, '0')}/${appt.scheduledAt.year} - ${appt.scheduledAt.hour.toString().padLeft(2, '0')}:${appt.scheduledAt.minute.toString().padLeft(2, '0')}';
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: cardBgColor,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: borderColor.withValues(alpha: 0.6)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(statusIcon, size: 16, color: statusTextColor),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        appt.nutritionistName ?? 'Especialista Nutricional',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: borderColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        statusText,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: statusTextColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today_rounded, size: 12, color: textSecondary),
-                    const SizedBox(width: 5),
-                    Text(
-                      fechaFormateada,
-                      style: TextStyle(fontSize: 11, color: textSecondary),
-                    ),
-                  ],
-                ),
-                if (isConflict) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    appt.cancellationReason ?? 'El especialista ya tiene una cita agendada en ese horario. Por favor selecciona otro horario.',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFFDC2626), fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 6),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        foregroundColor: const Color(0xFFDC2626),
-                      ),
-                      onPressed: () {
-                        colaService.descartarConflicto(appt.id);
-                        apptService.fetchAppointments();
-                      },
-                      icon: const Icon(Icons.delete_outline_rounded, size: 14),
-                      label: const Text('Descartar', style: TextStyle(fontSize: 11)),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          );
-        }),
       ],
     );
   }
