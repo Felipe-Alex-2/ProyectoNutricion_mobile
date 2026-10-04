@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../services/food_vision_service.dart';
 import '../../services/theme_service.dart';
+import '../../modo_offline/conectividad_service.dart';
 
 class FoodVisionScreen extends StatefulWidget {
   const FoodVisionScreen({super.key});
@@ -51,6 +52,18 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
 
   Future<void> _analyzePhoto() async {
     if (_selectedImageBytes == null) return;
+
+    final conectividad = context.read<ConectividadService>();
+    if (!conectividad.estaConectado) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: estás sin conexión a internet'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
     final service = context.read<FoodVisionService>();
     final result = await service.analyzeImage(_selectedImageBytes!, _selectedImageName ?? 'comida.jpg');
 

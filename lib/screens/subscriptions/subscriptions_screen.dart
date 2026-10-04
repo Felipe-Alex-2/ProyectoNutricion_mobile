@@ -8,6 +8,7 @@ import '../../services/subscription_service.dart';
 import '../../services/theme_service.dart';
 import 'ai_module_screen.dart';
 import '../food/food_vision_screen.dart';
+import '../../modo_offline/conectividad_service.dart';
 
 class SubscriptionsScreen extends StatefulWidget {
   const SubscriptionsScreen({super.key});
@@ -63,10 +64,23 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   }
 
   Future<void> _startPayPalFlow(StateSetter setModalState) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final conectividad = context.read<ConectividadService>();
+
+    if (!conectividad.estaConectado) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('Error: estás sin conexión a internet'),
+          backgroundColor: Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     setModalState(() => _isProcessingPayment = true);
 
     final subService = context.read<SubscriptionService>();
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     // 1. Generar orden oficial de PayPal Sandbox (vía backend o fallback directo a PayPal API)
     final order = await subService.createPayPalOrder('CLIENTE_PREMIUM');

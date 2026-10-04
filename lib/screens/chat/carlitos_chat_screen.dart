@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../services/carlitos_chat_service.dart';
 import '../../services/theme_service.dart';
+import '../../modo_offline/conectividad_service.dart';
 
 class CarlitosChatScreen extends StatefulWidget {
   const CarlitosChatScreen({super.key});
@@ -53,6 +54,17 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
     final text = textOverride ?? _textController.text;
     if (text.trim().isEmpty) return;
 
+    final conectividad = context.read<ConectividadService>();
+    if (!conectividad.estaConectado) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: estás sin conexión a internet'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
     _textController.clear();
     final service = context.read<CarlitosChatService>();
     final ok = await service.sendMessage(text);
@@ -88,12 +100,20 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              width: 36,
+              height: 36,
+              padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
                 color: primaryGreen.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
+                border: Border.all(color: primaryGreen.withValues(alpha: 0.3), width: 1.5),
               ),
-              child: Icon(Icons.smart_toy_rounded, color: primaryGreen, size: 22),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/images/peter_griffin.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
             const SizedBox(width: 10),
             Column(
@@ -170,12 +190,23 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Container(
-                              padding: const EdgeInsets.all(20),
+                              width: 110,
+                              height: 110,
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: primaryGreen.withValues(alpha: 0.1),
+                                color: primaryGreen.withValues(alpha: 0.12),
                                 shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: primaryGreen.withValues(alpha: 0.3),
+                                  width: 2.5,
+                                ),
                               ),
-                              child: Icon(Icons.chat_bubble_outline_rounded, size: 48, color: primaryGreen),
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'assets/images/peter_griffin.png',
+                                  fit: BoxFit.contain,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 16),
                             Text(
@@ -249,7 +280,14 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.smart_toy_rounded, size: 14, color: primaryGreen),
+                                      SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: Image.asset(
+                                          'assets/images/peter_griffin.png',
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         'Carlitos',

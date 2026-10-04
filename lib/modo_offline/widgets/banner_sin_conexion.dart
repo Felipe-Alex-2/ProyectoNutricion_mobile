@@ -137,7 +137,7 @@ class BannerSinConexion extends StatelessWidget {
             Text(
               pendientes > 0
                   ? 'Modo sin conexión • $pendientes ${pendientes == 1 ? "acción pendiente" : "acciones pendientes"}'
-                  : 'Modo sin conexión • Mostrando datos en caché',
+                  : 'Modo sin conexión',
               style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
             ),
           ],

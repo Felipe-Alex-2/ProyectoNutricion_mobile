@@ -91,6 +91,10 @@ class ApiService {
     Map<String, dynamic>? body,
     bool includeAuth = true,
   }) async {
+    if (conectividadService != null && !conectividadService!.estaConectado) {
+      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
+    }
+
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     final headers = await _getHeaders(includeAuth: includeAuth);
 
@@ -103,7 +107,8 @@ class ApiService {
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Error de conexión con el servidor ($e)');
+      conectividadService?.marcarDesconectadoPorErrorHttp();
+      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
     }
   }
 
@@ -112,6 +117,10 @@ class ApiService {
     Map<String, dynamic>? body,
     bool includeAuth = true,
   }) async {
+    if (conectividadService != null && !conectividadService!.estaConectado) {
+      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
+    }
+
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     final headers = await _getHeaders(includeAuth: includeAuth);
 
@@ -124,7 +133,8 @@ class ApiService {
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Error de conexión con el servidor ($e)');
+      conectividadService?.marcarDesconectadoPorErrorHttp();
+      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
     }
   }
 
@@ -133,6 +143,10 @@ class ApiService {
     Map<String, dynamic>? body,
     bool includeAuth = true,
   }) async {
+    if (conectividadService != null && !conectividadService!.estaConectado) {
+      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
+    }
+
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     final headers = await _getHeaders(includeAuth: includeAuth);
 
@@ -145,7 +159,8 @@ class ApiService {
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Error de conexión con el servidor ($e)');
+      conectividadService?.marcarDesconectadoPorErrorHttp();
+      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
     }
   }
 
@@ -154,6 +169,10 @@ class ApiService {
     Map<String, dynamic>? body,
     bool includeAuth = true,
   }) async {
+    if (conectividadService != null && !conectividadService!.estaConectado) {
+      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
+    }
+
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     final headers = await _getHeaders(includeAuth: includeAuth);
 
@@ -166,7 +185,8 @@ class ApiService {
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Error de conexión con el servidor ($e)');
+      conectividadService?.marcarDesconectadoPorErrorHttp();
+      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
     }
   }
 
@@ -177,6 +197,10 @@ class ApiService {
     String fieldName = 'file',
     bool includeAuth = true,
   }) async {
+    if (conectividadService != null && !conectividadService!.estaConectado) {
+      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
+    }
+
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
     final request = http.MultipartRequest('POST', url);
 
@@ -202,7 +226,8 @@ class ApiService {
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
-      throw ApiException('Error de conexión al subir imagen ($e)');
+      conectividadService?.marcarDesconectadoPorErrorHttp();
+      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
     }
   }
 
@@ -230,6 +255,10 @@ class ApiService {
       } else if (decodedBody.containsKey('message')) {
         errorMessage = decodedBody['message'];
       }
+    }
+
+    if (response.statusCode == 401 && errorMessage.toLowerCase().contains('invalid or expired token')) {
+      errorMessage = 'Error: sesión expirada. Inicia sesión nuevamente.';
     }
 
     throw ApiException(errorMessage, statusCode: response.statusCode);
