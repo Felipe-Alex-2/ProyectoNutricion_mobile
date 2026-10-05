@@ -8,6 +8,7 @@ class DetectedFoodItem {
   final double carbohidratosG;
   final double proteinasG;
   final double grasasG;
+  final double fibraG;
 
   DetectedFoodItem({
     required this.nombre,
@@ -16,6 +17,7 @@ class DetectedFoodItem {
     required this.carbohidratosG,
     required this.proteinasG,
     required this.grasasG,
+    this.fibraG = 0.0,
   });
 
   factory DetectedFoodItem.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class DetectedFoodItem {
       carbohidratosG: (json['carbohidratos_g'] as num?)?.toDouble() ?? 0.0,
       proteinasG: (json['proteinas_g'] as num?)?.toDouble() ?? 0.0,
       grasasG: (json['grasas_g'] as num?)?.toDouble() ?? 0.0,
+      fibraG: (json['fibra_g'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
@@ -37,6 +40,7 @@ class FoodAnalysisResult {
   final double totalCarbs;
   final double totalProteinas;
   final double totalGrasas;
+  final double totalFibra;
   final String confianza;
   final String observaciones;
   final String? evalStatus;
@@ -51,6 +55,7 @@ class FoodAnalysisResult {
     required this.totalCarbs,
     required this.totalProteinas,
     required this.totalGrasas,
+    this.totalFibra = 0.0,
     required this.confianza,
     required this.observaciones,
     this.evalStatus,
@@ -71,6 +76,7 @@ class FoodAnalysisResult {
       totalCarbs: (total['carbohidratos_g'] as num?)?.toDouble() ?? 0.0,
       totalProteinas: (total['proteinas_g'] as num?)?.toDouble() ?? 0.0,
       totalGrasas: (total['grasas_g'] as num?)?.toDouble() ?? 0.0,
+      totalFibra: (total['fibra_g'] as num?)?.toDouble() ?? 0.0,
       confianza: json['confianza'] as String? ?? 'media',
       observaciones: json['observaciones'] as String? ?? '',
       evalStatus: eval?['status'] as String?,
