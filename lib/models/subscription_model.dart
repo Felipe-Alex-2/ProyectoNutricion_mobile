@@ -129,3 +129,16 @@ class CreateOrderResponse {
     );
   }
 }
+
+class PaymentVerificationResult {
+  final bool isPaid;
+  final String message;
+  final String? status;
+
+  PaymentVerificationResult({
+    required this.isPaid,
+    required this.message,
+    this.status,
+  });
+}
+

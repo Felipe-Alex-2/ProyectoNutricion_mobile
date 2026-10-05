@@ -28,6 +28,7 @@ class ElementoCola {
   });
 
   bool get esCita => tipoAccion == 'CREAR_CITA';
+  bool get esFichaMedica => tipoAccion == 'ACTUALIZAR_FICHA_MEDICA';
   bool get tieneErrorConflicto => estado == 'ERROR_CONFLICTO';
   bool get estaPendiente => estado == 'PENDIENTE';
 

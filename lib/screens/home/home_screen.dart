@@ -2295,7 +2295,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     if (esPendienteOffline) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(
-                                          content: Text('📱 Cita guardada como pendiente (sin conexión). Se enviará automáticamente a tu especialista cuando te conectes a internet.'),
+                                          content: Text('Cita guardada como pendiente (sin conexion). Se enviara automaticamente a tu especialista cuando te conectes a internet.'),
                                           backgroundColor: Color(0xFFD97706),
                                           duration: Duration(seconds: 4),
                                         ),

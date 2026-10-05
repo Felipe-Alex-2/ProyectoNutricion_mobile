@@ -20,6 +20,7 @@ class SincronizadorService extends ChangeNotifier {
   DateTime? get ultimaSincronizacion => _ultimaSincronizacion;
 
   VoidCallback? onCitasActualizadas;
+  VoidCallback? onFichaActualizada;
 
   SincronizadorService({
     required this.conectividadService,
@@ -31,14 +32,21 @@ class SincronizadorService extends ChangeNotifier {
   }
 
   void _alCambiarConectividad() {
-    if (conectividadService.estaConectado && colaService.tienePendientes && !_estaSincronizando) {
-      sincronizarCola();
+    if (conectividadService.estaConectado && !_estaSincronizando) {
+      sincronizarCola(userId: apiService.currentUserId);
     }
   }
 
   /// Procesa la cola FIFO de acciones pendientes
   Future<void> sincronizarCola({String? userId}) async {
     if (_estaSincronizando || !conectividadService.estaConectado) return;
+
+    final targetUserId = (userId != null && userId.isNotEmpty) ? userId : apiService.currentUserId;
+    if (colaService.elementos.isEmpty && targetUserId != null && targetUserId.isNotEmpty) {
+      await colaService.cargarCola(userId: targetUserId);
+    }
+
+    if (!colaService.tienePendientes) return;
 
     _estaSincronizando = true;
     _ultimoMensajeExito = null;
@@ -50,11 +58,13 @@ class SincronizadorService extends ChangeNotifier {
       pendientes.sort((a, b) => a.fechaCreacion.compareTo(b.fechaCreacion)); // Orden FIFO estricto
 
       bool huboCambiosEnCitas = false;
+      bool huboCambiosEnFicha = false;
 
       for (final elemento in pendientes) {
         if (!conectividadService.estaConectado) break;
 
-        await colaService.actualizarEstado(elemento.id, 'SINCRONIZANDO', userId: userId);
+        final elUserId = (targetUserId != null && targetUserId.isNotEmpty) ? targetUserId : elemento.userId;
+        await colaService.actualizarEstado(elemento.id, 'SINCRONIZANDO', userId: elUserId);
 
         try {
           if (elemento.metodo == 'POST') {
@@ -65,34 +75,37 @@ class SincronizadorService extends ChangeNotifier {
 
             if (elemento.esCita) {
               huboCambiosEnCitas = true;
-              _ultimoMensajeExito = 'Cita médica sincronizada exitosamente con tu especialista.';
+              _ultimoMensajeExito = 'Cita medica sincronizada exitosamente con tu especialista.';
+            } else if (elemento.esFichaMedica || elemento.tipoAccion == 'ACTUALIZAR_FICHA_MEDICA') {
+              huboCambiosEnFicha = true;
+              _ultimoMensajeExito = 'Ficha de salud sincronizada exitosamente con el servidor.';
             }
 
-            // Removido con éxito
-            await colaService.remover(elemento.id, userId: userId);
+            // Removido con exito
+            await colaService.remover(elemento.id, userId: elUserId);
           } else if (elemento.metodo == 'PUT') {
             await apiService.put(
               elemento.endpoint,
               body: elemento.cuerpo,
             );
-            await colaService.remover(elemento.id, userId: userId);
+            await colaService.remover(elemento.id, userId: elUserId);
           } else if (elemento.metodo == 'PATCH') {
             await apiService.patch(
               elemento.endpoint,
               body: elemento.cuerpo,
             );
-            await colaService.remover(elemento.id, userId: userId);
+            await colaService.remover(elemento.id, userId: elUserId);
           } else if (elemento.metodo == 'DELETE') {
             await apiService.delete(
               elemento.endpoint,
               body: elemento.cuerpo,
             );
-            await colaService.remover(elemento.id, userId: userId);
+            await colaService.remover(elemento.id, userId: elUserId);
           }
         } catch (e) {
           final errorStr = e.toString().toLowerCase();
 
-          // Si el servidor indica conflicto o que ya está agendada
+          // Si el servidor indica conflicto o que ya esta agendada
           if (errorStr.contains('ya tiene una cita') ||
               errorStr.contains('conflicto') ||
               errorStr.contains('solapamiento') ||
@@ -103,18 +116,19 @@ class SincronizadorService extends ChangeNotifier {
               elemento.id,
               'ERROR_CONFLICTO',
               error: mensajeAmigable,
-              userId: userId,
+              userId: elUserId,
             );
             _ultimoErrorConflicto = mensajeAmigable;
             if (elemento.esCita) {
               huboCambiosEnCitas = true;
             }
           } else if (errorStr.contains('conexión') ||
+              errorStr.contains('conexion') ||
               errorStr.contains('socket') ||
               errorStr.contains('failed host lookup') ||
               errorStr.contains('timeout')) {
-            // Error de red temporal: volver a dejarlo pendiente y pausar la sincronización
-            await colaService.actualizarEstado(elemento.id, 'PENDIENTE', userId: userId);
+            // Error de red temporal: volver a dejarlo pendiente y pausar la sincronizacion
+            await colaService.actualizarEstado(elemento.id, 'PENDIENTE', userId: elUserId);
             conectividadService.marcarDesconectadoPorErrorHttp();
             break;
           } else {
@@ -123,7 +137,7 @@ class SincronizadorService extends ChangeNotifier {
               elemento.id,
               'ERROR',
               error: e.toString().replaceAll('Exception:', '').trim(),
-              userId: userId,
+              userId: elUserId,
             );
           }
         }
@@ -133,6 +147,9 @@ class SincronizadorService extends ChangeNotifier {
 
       if (huboCambiosEnCitas) {
         onCitasActualizadas?.call();
+      }
+      if (huboCambiosEnFicha) {
+        onFichaActualizada?.call();
       }
     } finally {
       _estaSincronizando = false;

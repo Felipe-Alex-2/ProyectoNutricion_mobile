@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../models/anamnesis_model.dart';
 import '../../services/anamnesis_service.dart';
+import '../../services/auth_service.dart';
 import '../../services/theme_service.dart';
 
 class AnamnesisScreen extends StatefulWidget {
@@ -99,6 +100,10 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
 
   Future<void> _loadExistingData() async {
     final service = context.read<AnamnesisService>();
+    final auth = context.read<AuthService>();
+    if (service.currentUserId == null && auth.currentUser != null) {
+      service.currentUserId = auth.currentUser!.id.toString();
+    }
     await service.fetchMyAnamnesis();
 
     final data = service.anamnesis;
@@ -218,6 +223,10 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
 
   Future<void> _saveAnamnesis() async {
     final service = context.read<AnamnesisService>();
+    final auth = context.read<AuthService>();
+    if (service.currentUserId == null && auth.currentUser != null) {
+      service.currentUserId = auth.currentUser!.id.toString();
+    }
 
     if (!_consentDataProcessing) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -294,9 +303,12 @@ class _AnamnesisScreenState extends State<AnamnesisScreen> {
     if (!mounted) return;
 
     if (ok) {
+      final msg = service.isSavedOffline
+          ? 'Ficha de salud guardada localmente sin conexion. Se sincronizara con el sistema al conectarte a internet.'
+          : 'Ficha de salud guardada exitosamente. Tu plan ya puede calcularse.';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('¡Ficha de salud guardada exitosamente! Tu plan ya puede calcularse.'),
+        SnackBar(
+          content: Text(msg),
           backgroundColor: AppTheme.primaryGreen,
         ),
       );

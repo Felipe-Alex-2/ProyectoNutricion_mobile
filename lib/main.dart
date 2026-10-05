@@ -52,6 +52,13 @@ void main() {
     conectividadService: conectividadService,
   );
 
+  final anamnesisService = AnamnesisService(
+    apiService,
+    colaService: colaService,
+    conectividadService: conectividadService,
+    cacheService: cacheLocalService,
+  );
+
   final sincronizadorService = SincronizadorService(
     conectividadService: conectividadService,
     colaService: colaService,
@@ -63,14 +70,21 @@ void main() {
     appointmentService.fetchAppointments();
   };
 
+  // Auto-actualizar ficha medica si el sincronizador termina de enviar la ficha encolada
+  sincronizadorService.onFichaActualizada = () {
+    anamnesisService.fetchMyAnamnesis();
+  };
+
   // Sincronizar identificador de usuario con almacenamiento local
   authService.addListener(() {
     final userId = authService.currentUser?.id.toString();
     apiService.currentUserId = userId;
     appointmentService.currentUserId = userId;
+    anamnesisService.currentUserId = userId;
     if (userId != null) {
       colaService.cargarCola(userId: userId).then((_) {
         appointmentService.fetchAppointments();
+        anamnesisService.fetchMyAnamnesis();
       });
     }
   });
@@ -78,7 +92,6 @@ void main() {
   final themeService = ThemeService();
   final patientService = PatientService(apiService);
   final activityLogService = ActivityLogService(apiService);
-  final anamnesisService = AnamnesisService(apiService);
   final recipeService = RecipeService(apiService);
   final notificationService = NotificationService(apiService);
   final subscriptionService = SubscriptionService(apiService, storageService);

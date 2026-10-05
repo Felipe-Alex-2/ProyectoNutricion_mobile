@@ -21,6 +21,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   bool _isProcessingPayment = false;
   CreateOrderResponse? _activeOrder;
   bool _browserOpened = false;
+  bool _paymentFailedOrNotPaid = false;
+  String? _verificationMessage;
 
   @override
   void initState() {
@@ -37,6 +39,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       _activeOrder = null;
       _browserOpened = false;
       _isProcessingPayment = false;
+      _paymentFailedOrNotPaid = false;
+      _verificationMessage = null;
     });
 
     showModalBottomSheet(
@@ -338,32 +342,76 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 ),
               ] else ...[
                 // PASO 2: Confirmación tras pagar en el navegador
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFDCFCE7),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF86EFAC)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.check_circle_outline_rounded, color: Color(0xFF15803D), size: 24),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Se abrió PayPal Sandbox en tu navegador. Completa el cobro simulado y pulsa el botón abajo.',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: Color(0xFF14532D),
-                            fontWeight: FontWeight.w600,
-                            height: 1.3,
+                if (_paymentFailedOrNotPaid) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFF87171)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 24),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'No ha pagado aún',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  color: Color(0xFF991B1B),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                _verificationMessage ??
+                                    'No se detectó el pago completado en PayPal Sandbox. Por favor completa el cobro en el navegador y vuelve a presionar "Verificar otra vez".',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF7F1D1D),
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                ] else ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isDark ? Colors.white12 : const Color(0xFFCBD5E1)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.open_in_browser_rounded, color: Color(0xFF003087), size: 24),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Se abrió PayPal Sandbox en tu navegador. Una vez completes el cobro simulado, presiona el botón para verificar.',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: textPrimary,
+                              fontWeight: FontWeight.w500,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
@@ -380,39 +428,45 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                             final navigator = Navigator.of(context);
 
                             final orderId = _activeOrder?.orderId ?? 'PAYPAL_ORDER';
-                            final success = await subService.captureOrActivateSubscription(
+                            final result = await subService.verifyAndActivateSubscription(
                               orderId,
                               userId: authService.currentUser?.id,
                             );
 
                             if (!mounted) return;
-                            setModalState(() => _isProcessingPayment = false);
 
-                            navigator.pop(); // Cerrar modal
-                            if (success) {
+                            if (result.isPaid) {
+                              setModalState(() {
+                                _isProcessingPayment = false;
+                                _paymentFailedOrNotPaid = false;
+                                _verificationMessage = null;
+                              });
+
+                              navigator.pop(); // Cerrar modal
+
                               scaffoldMessenger.showSnackBar(
                                 const SnackBar(
-                                  content: Row(
-                                    children: [
-                                      Icon(Icons.stars_rounded, color: Colors.amber, size: 24),
-                                      SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          '¡Pago con PayPal completado! Plan Premium activo por 1 mes y módulos de IA habilitados.',
-                                          style: TextStyle(fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                    ],
+                                  content: Text(
+                                    'Pago verificado exitosamente. Plan Premium activo por 1 mes y módulos de IA habilitados.',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
                                   ),
                                   backgroundColor: Color(0xFF15803D),
                                   duration: Duration(seconds: 4),
                                   behavior: SnackBarBehavior.floating,
                                 ),
                               );
+                            } else {
+                              setModalState(() {
+                                _isProcessingPayment = false;
+                                _paymentFailedOrNotPaid = true;
+                                _verificationMessage = result.message;
+                              });
                             }
                           },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF15803D),
+                      backgroundColor: _paymentFailedOrNotPaid
+                          ? const Color(0xFFD97706) // Color ámbar cuando debe reintentar
+                          : const Color(0xFF15803D), // Color verde oficial verificación
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(26),
@@ -425,11 +479,16 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : const Icon(Icons.verified_rounded, color: Colors.white),
+                        : Icon(
+                            _paymentFailedOrNotPaid ? Icons.refresh_rounded : Icons.verified_outlined,
+                            color: Colors.white,
+                          ),
                     label: Text(
-                      _isProcessingPayment ? 'Activando Plan Premium...' : 'Confirmar Pago y Activar Plan Premium',
+                      _isProcessingPayment
+                          ? 'Verificando pago con PayPal...'
+                          : (_paymentFailedOrNotPaid ? 'Verificar otra vez' : 'Verificar Pago'),
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 14.5,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
@@ -18,6 +19,28 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
   final ImagePicker _picker = ImagePicker();
   Uint8List? _selectedImageBytes;
   String? _selectedImageName;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDefaultSampleImage();
+  }
+
+  Future<void> _loadDefaultSampleImage() async {
+    try {
+      final byteData = await rootBundle.load('assets/images/fotocomida.png');
+      final bytes = byteData.buffer.asUint8List();
+      if (mounted) {
+        setState(() {
+          _selectedImageBytes = bytes;
+          _selectedImageName = 'FOTOcomida.png';
+        });
+        context.read<FoodVisionService>().clearLastAnalysis();
+      }
+    } catch (e) {
+      debugPrint('No se pudo precargar la imagen de comida de muestra: $e');
+    }
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -172,6 +195,32 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                             children: [
                               Image.memory(_selectedImageBytes!, fit: BoxFit.cover),
                               Positioned(
+                                top: 12,
+                                left: 12,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.65),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.restaurant_rounded, size: 14, color: Colors.white),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Foto de Plato Cargada',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Positioned(
                                 bottom: 12,
                                 right: 12,
                                 child: Container(
@@ -183,7 +232,7 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.edit, size: 14, color: Colors.white),
+                                      Icon(Icons.camera_alt_outlined, size: 14, color: Colors.white),
                                       SizedBox(width: 6),
                                       Text('Cambiar foto', style: TextStyle(color: Colors.white, fontSize: 11)),
                                     ],
@@ -193,23 +242,44 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                             ],
                           ),
                         )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add_a_photo_outlined, size: 48, color: textSecondary),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Presiona para tomar foto o elegir de la galería',
-                              style: TextStyle(fontSize: 13, color: textSecondary),
-                            ),
-                          ],
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Image.asset('assets/images/fotocomida.png', fit: BoxFit.cover),
+                              Container(
+                                color: Colors.black.withValues(alpha: 0.25),
+                              ),
+                              Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.65),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.add_a_photo_outlined, size: 36, color: Colors.white),
+                                      SizedBox(height: 6),
+                                      Text(
+                                        'Presiona para tomar foto o elegir de la galería',
+                                        style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                 ),
               ),
 
               const SizedBox(height: 16),
 
-              // Buttons: Cámara / Galería / Analizar
+              // Action Buttons
               if (_selectedImageBytes == null) ...[
                 Row(
                   children: [
@@ -252,9 +322,9 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                         ? const SizedBox.shrink()
                         : const Icon(Icons.auto_awesome_rounded, color: Colors.white),
                     label: isAnalyzing
-                        ? Row(
+                        ? const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children: const [
+                            children: [
                               SizedBox(
                                 width: 20,
                                 height: 20,
@@ -269,6 +339,44 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                   ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: isAnalyzing ? null : () => _pickImage(ImageSource.camera),
+                        icon: const Icon(Icons.photo_camera_rounded, size: 18),
+                        label: const Text('Tomar Foto', style: TextStyle(fontSize: 12.5)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: isAnalyzing ? null : () => _pickImage(ImageSource.gallery),
+                        icon: const Icon(Icons.photo_library_rounded, size: 18),
+                        label: const Text('Galería', style: TextStyle(fontSize: 12.5)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.outlined(
+                      style: IconButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.all(12),
+                      ),
+                      tooltip: 'Restaurar foto de muestra',
+                      onPressed: isAnalyzing ? null : _loadDefaultSampleImage,
+                      icon: const Icon(Icons.restore_rounded, size: 18),
+                    ),
+                  ],
                 ),
               ],
 
@@ -444,6 +552,14 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.restore_rounded),
+              title: const Text('Restaurar foto de muestra de comida'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _loadDefaultSampleImage();
               },
             ),
           ],

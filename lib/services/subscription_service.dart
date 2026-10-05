@@ -249,54 +249,228 @@ class SubscriptionService extends ChangeNotifier {
     );
   }
 
-  // Activa la suscripción Premium por 1 mes (30 días)
-  Future<bool> captureOrActivateSubscription(String orderId, {String? userId}) async {
+  // Verifica con PayPal si el usuario realmente completó el pago antes de activar
+  Future<PaymentVerificationResult> verifyAndActivateSubscription(
+    String orderId, {
+    String? userId,
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    // Intentar validar en backend
+    // 1. Intentar validar a través del endpoint del backend
     try {
-      await _apiService.post(
-        '/subscriptions/capture',
+      final res = await _apiService.post(
+        '/subscriptions/verify-order',
         body: {'order_id': orderId},
       );
-    } catch (_) {
-      try {
-        await _apiService.post(
-          '/subscriptions/validate-sandbox?order_id=$orderId',
-        );
-      } catch (_) {
-        // Fallback local instantáneo
+      if (res is Map<String, dynamic>) {
+        final isPaid = res['paid'] == true;
+        final message = res['message'] as String? ?? '';
+        final status = res['status'] as String?;
+
+        if (isPaid) {
+          final now = DateTime.now();
+          final expires = now.add(const Duration(days: 30));
+
+          _currentSubscription = Subscription(
+            id: orderId,
+            planName: 'CLIENTE_PREMIUM',
+            status: 'ACTIVE',
+            amount: 5.0,
+            currency: 'USD',
+            startedAt: now,
+            expiresAt: expires,
+            createdAt: now,
+            paypalOrderId: orderId,
+          );
+
+          await _storageService.saveLocalSubscription(
+            status: 'ACTIVE',
+            expiresAt: expires.toIso8601String(),
+            orderId: orderId,
+            userId: userId,
+          );
+
+          _isLoading = false;
+          notifyListeners();
+          return PaymentVerificationResult(
+            isPaid: true,
+            message: message.isNotEmpty ? message : 'Pago verificado exitosamente. Plan Premium activado.',
+            status: status,
+          );
+        } else {
+          // El backend confirmó que NO ha pagado aún
+          _isLoading = false;
+          _errorMessage = message.isNotEmpty ? message : 'No ha pagado aún en PayPal.';
+          notifyListeners();
+          return PaymentVerificationResult(
+            isPaid: false,
+            message: _errorMessage!,
+            status: status,
+          );
+        }
       }
+    } catch (e) {
+      debugPrint('Fallo al verificar con backend, verificando directamente con PayPal Sandbox: $e');
     }
 
-    // Activación inmediata garantizada
-    final now = DateTime.now();
-    final expires = now.add(const Duration(days: 30));
+    // 2. Verificación directa con PayPal Sandbox REST API (garantizada)
+    try {
+      final directStatus = await _queryDirectPayPalOrderStatus(orderId);
 
-    _currentSubscription = Subscription(
-      id: orderId,
-      planName: 'CLIENTE_PREMIUM',
-      status: 'ACTIVE',
-      amount: 5.0,
-      currency: 'USD',
-      startedAt: now,
-      expiresAt: expires,
-      createdAt: now,
-      paypalOrderId: orderId,
+      // Si la orden aún no ha sido pagada por el comprador:
+      if (directStatus == 'CREATED' || directStatus == 'PAYER_ACTION_REQUIRED' || directStatus == 'SAVED') {
+        _isLoading = false;
+        _errorMessage = 'No ha pagado aún. Por favor complete el pago en PayPal en el navegador y vuelva a verificar.';
+        notifyListeners();
+        return PaymentVerificationResult(
+          isPaid: false,
+          message: _errorMessage!,
+          status: directStatus,
+        );
+      }
+
+      // Si está APPROVED, capturar el pago en PayPal
+      if (directStatus == 'APPROVED') {
+        final captured = await _captureDirectPayPalOrder(orderId);
+        if (!captured) {
+          _isLoading = false;
+          _errorMessage = 'No ha pagado aún o el cobro no pudo completarse en PayPal.';
+          notifyListeners();
+          return PaymentVerificationResult(
+            isPaid: false,
+            message: _errorMessage!,
+            status: 'CAPTURE_FAILED',
+          );
+        }
+      } else if (directStatus != 'COMPLETED') {
+        _isLoading = false;
+        _errorMessage = 'Estado de orden en PayPal: $directStatus. No ha pagado aún.';
+        notifyListeners();
+        return PaymentVerificationResult(
+          isPaid: false,
+          message: _errorMessage!,
+          status: directStatus,
+        );
+      }
+
+      // El pago ESTÁ confirmado y capturado (COMPLETED)
+      final now = DateTime.now();
+      final expires = now.add(const Duration(days: 30));
+
+      _currentSubscription = Subscription(
+        id: orderId,
+        planName: 'CLIENTE_PREMIUM',
+        status: 'ACTIVE',
+        amount: 5.0,
+        currency: 'USD',
+        startedAt: now,
+        expiresAt: expires,
+        createdAt: now,
+        paypalOrderId: orderId,
+      );
+
+      await _storageService.saveLocalSubscription(
+        status: 'ACTIVE',
+        expiresAt: expires.toIso8601String(),
+        orderId: orderId,
+        userId: userId,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      return PaymentVerificationResult(
+        isPaid: true,
+        message: 'Pago verificado exitosamente. Plan Premium activado.',
+        status: 'COMPLETED',
+      );
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = 'No ha pagado aún o no se pudo comprobar el pago en PayPal.';
+      notifyListeners();
+      return PaymentVerificationResult(
+        isPaid: false,
+        message: _errorMessage!,
+        status: 'ERROR',
+      );
+    }
+  }
+
+  Future<String> _queryDirectPayPalOrderStatus(String orderId) async {
+    final credentials = '$_paypalClientId:$_paypalClientSecret';
+    final basicAuth = base64Encode(utf8.encode(credentials));
+
+    final tokenRes = await http.post(
+      Uri.parse('$_paypalBaseUrl/v1/oauth2/token'),
+      headers: {
+        'Authorization': 'Basic $basicAuth',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: {'grant_type': 'client_credentials'},
     );
 
-    await _storageService.saveLocalSubscription(
-      status: 'ACTIVE',
-      expiresAt: expires.toIso8601String(),
-      orderId: orderId,
-      userId: userId,
+    if (tokenRes.statusCode != 200) {
+      throw Exception('Error autenticando con PayPal Sandbox');
+    }
+
+    final tokenData = jsonDecode(tokenRes.body) as Map<String, dynamic>;
+    final accessToken = tokenData['access_token'] as String;
+
+    final orderRes = await http.get(
+      Uri.parse('$_paypalBaseUrl/v2/checkout/orders/$orderId'),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        'Content-Type': 'application/json',
+      },
     );
 
-    _isLoading = false;
-    notifyListeners();
-    return true;
+    if (orderRes.statusCode != 200) {
+      throw Exception('Error consultando orden $orderId');
+    }
+
+    final data = jsonDecode(orderRes.body) as Map<String, dynamic>;
+    return (data['status'] as String? ?? 'UNKNOWN').toUpperCase();
+  }
+
+  Future<bool> _captureDirectPayPalOrder(String orderId) async {
+    final credentials = '$_paypalClientId:$_paypalClientSecret';
+    final basicAuth = base64Encode(utf8.encode(credentials));
+
+    final tokenRes = await http.post(
+      Uri.parse('$_paypalBaseUrl/v1/oauth2/token'),
+      headers: {
+        'Authorization': 'Basic $basicAuth',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: {'grant_type': 'client_credentials'},
+    );
+
+    if (tokenRes.statusCode != 200) return false;
+
+    final tokenData = jsonDecode(tokenRes.body) as Map<String, dynamic>;
+    final accessToken = tokenData['access_token'] as String;
+
+    final captureRes = await http.post(
+      Uri.parse('$_paypalBaseUrl/v2/checkout/orders/$orderId/capture'),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (captureRes.statusCode == 200 || captureRes.statusCode == 201) {
+      final data = jsonDecode(captureRes.body) as Map<String, dynamic>;
+      final status = (data['status'] as String? ?? '').toUpperCase();
+      return status == 'COMPLETED' || status == 'APPROVED';
+    }
+    return false;
+  }
+
+  // Compatibilidad hacia atrás
+  Future<bool> captureOrActivateSubscription(String orderId, {String? userId}) async {
+    final res = await verifyAndActivateSubscription(orderId, userId: userId);
+    return res.isPaid;
   }
 
   Future<bool> cancelSubscription({String? userId}) async {
