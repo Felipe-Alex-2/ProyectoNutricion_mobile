@@ -206,8 +206,8 @@ class SubscriptionService extends ChangeNotifier {
             'brand_name': 'NutriSalud',
             'landing_page': 'LOGIN',
             'user_action': 'PAY_NOW',
-            'return_url': 'https://proyectonutricionbackend-production.up.railway.app/paypal-return',
-            'cancel_url': 'https://proyectonutricionbackend-production.up.railway.app/cancel',
+            'return_url': 'https://sandbox.paypal.com/myaccount/summary?intl=0',
+            'cancel_url': 'https://sandbox.paypal.com/myaccount/summary?intl=0',
           }
         }
       }
@@ -273,17 +273,23 @@ class SubscriptionService extends ChangeNotifier {
           final now = DateTime.now();
           final expires = now.add(const Duration(days: 30));
 
-          _currentSubscription = Subscription(
-            id: orderId,
-            planName: 'CLIENTE_PREMIUM',
-            status: 'ACTIVE',
-            amount: 5.0,
-            currency: 'USD',
-            startedAt: now,
-            expiresAt: expires,
-            createdAt: now,
-            paypalOrderId: orderId,
-          );
+          final subJson = res['subscription'] as Map<String, dynamic>?;
+          if (subJson != null) {
+            _currentSubscription = Subscription.fromJson(subJson);
+          } else {
+            _currentSubscription = Subscription(
+              id: orderId,
+              userId: userId,
+              planName: 'CLIENTE_PREMIUM',
+              status: 'ACTIVE',
+              amount: 5.0,
+              currency: 'USD',
+              startedAt: now,
+              expiresAt: expires,
+              createdAt: now,
+              paypalOrderId: orderId,
+            );
+          }
 
           await _storageService.saveLocalSubscription(
             status: 'ACTIVE',
@@ -300,7 +306,7 @@ class SubscriptionService extends ChangeNotifier {
             status: status,
           );
         } else {
-          // El backend confirmó que NO ha pagado aún
+          // El backend confirmó que NO ha pagado aún o el cobro fue rechazado
           _isLoading = false;
           _errorMessage = message.isNotEmpty ? message : 'No ha pagado aún en PayPal.';
           notifyListeners();
@@ -322,7 +328,7 @@ class SubscriptionService extends ChangeNotifier {
       // Si la orden aún no ha sido pagada por el comprador:
       if (directStatus == 'CREATED' || directStatus == 'PAYER_ACTION_REQUIRED' || directStatus == 'SAVED') {
         _isLoading = false;
-        _errorMessage = 'No ha pagado aún. Por favor complete el pago en PayPal en el navegador y vuelva a verificar.';
+        _errorMessage = 'Tu orden en PayPal aún no ha sido pagada. Por favor completa el pago de \$5.00 USD en el navegador y vuelve a presionar verificar.';
         notifyListeners();
         return PaymentVerificationResult(
           isPaid: false,
@@ -333,10 +339,10 @@ class SubscriptionService extends ChangeNotifier {
 
       // Si está APPROVED, capturar el pago en PayPal
       if (directStatus == 'APPROVED') {
-        final captured = await _captureDirectPayPalOrder(orderId);
-        if (!captured) {
+        final captureResult = await _captureDirectPayPalOrder(orderId);
+        if (!captureResult.success) {
           _isLoading = false;
-          _errorMessage = 'No ha pagado aún o el cobro no pudo completarse en PayPal.';
+          _errorMessage = captureResult.errorMessage ?? 'El cobro no pudo completarse en PayPal.';
           notifyListeners();
           return PaymentVerificationResult(
             isPaid: false,
@@ -346,7 +352,7 @@ class SubscriptionService extends ChangeNotifier {
         }
       } else if (directStatus != 'COMPLETED') {
         _isLoading = false;
-        _errorMessage = 'Estado de orden en PayPal: $directStatus. No ha pagado aún.';
+        _errorMessage = 'Estado de orden en PayPal: $directStatus. Aún no se ha completado el pago.';
         notifyListeners();
         return PaymentVerificationResult(
           isPaid: false,
@@ -356,11 +362,22 @@ class SubscriptionService extends ChangeNotifier {
       }
 
       // El pago ESTÁ confirmado y capturado (COMPLETED)
+      // Sincronizar con el backend para que la base de datos active la suscripción del usuario
+      try {
+        await _apiService.post(
+          '/subscriptions/validate-sandbox',
+          body: {'order_id': orderId},
+        );
+      } catch (e) {
+        debugPrint('Aviso sincronización validate-sandbox con backend: $e');
+      }
+
       final now = DateTime.now();
       final expires = now.add(const Duration(days: 30));
 
       _currentSubscription = Subscription(
         id: orderId,
+        userId: userId,
         planName: 'CLIENTE_PREMIUM',
         status: 'ACTIVE',
         amount: 5.0,
@@ -433,7 +450,7 @@ class SubscriptionService extends ChangeNotifier {
     return (data['status'] as String? ?? 'UNKNOWN').toUpperCase();
   }
 
-  Future<bool> _captureDirectPayPalOrder(String orderId) async {
+  Future<({bool success, String? errorMessage})> _captureDirectPayPalOrder(String orderId) async {
     final credentials = '$_paypalClientId:$_paypalClientSecret';
     final basicAuth = base64Encode(utf8.encode(credentials));
 
@@ -446,7 +463,9 @@ class SubscriptionService extends ChangeNotifier {
       body: {'grant_type': 'client_credentials'},
     );
 
-    if (tokenRes.statusCode != 200) return false;
+    if (tokenRes.statusCode != 200) {
+      return (success: false, errorMessage: 'Error de autenticación con PayPal Sandbox.');
+    }
 
     final tokenData = jsonDecode(tokenRes.body) as Map<String, dynamic>;
     final accessToken = tokenData['access_token'] as String;
@@ -462,9 +481,25 @@ class SubscriptionService extends ChangeNotifier {
     if (captureRes.statusCode == 200 || captureRes.statusCode == 201) {
       final data = jsonDecode(captureRes.body) as Map<String, dynamic>;
       final status = (data['status'] as String? ?? '').toUpperCase();
-      return status == 'COMPLETED' || status == 'APPROVED';
+      if (status == 'COMPLETED' || status == 'APPROVED') {
+        return (success: true, errorMessage: null);
+      }
     }
-    return false;
+
+    final bodyStr = captureRes.body;
+    if (bodyStr.contains('INSTRUMENT_DECLINED') ||
+        bodyStr.contains('INSUFFICIENT_FUNDS') ||
+        bodyStr.contains('DECLINED')) {
+      return (
+        success: false,
+        errorMessage: 'El cobro fue rechazado por PayPal. Tu cuenta Sandbox no cuenta con saldo suficiente o el método de pago fue declinado.',
+      );
+    }
+
+    return (
+      success: false,
+      errorMessage: 'El cobro no pudo completarse en PayPal. Verifica que tu cuenta tenga fondos disponibles.',
+    );
   }
 
   // Compatibilidad hacia atrás

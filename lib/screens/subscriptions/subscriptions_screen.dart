@@ -442,6 +442,11 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                                 _verificationMessage = null;
                               });
 
+                              await subService.fetchCurrentSubscription(userId: authService.currentUser?.id);
+
+                              if (!mounted) return;
+                              setState(() {});
+
                               navigator.pop(); // Cerrar modal
 
                               scaffoldMessenger.showSnackBar(
