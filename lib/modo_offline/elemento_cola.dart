@@ -31,6 +31,7 @@ class ElementoCola {
   bool get esFichaMedica => tipoAccion == 'ACTUALIZAR_FICHA_MEDICA';
   bool get tieneErrorConflicto => estado == 'ERROR_CONFLICTO';
   bool get estaPendiente => estado == 'PENDIENTE';
+  bool get esSincronizable => estado == 'PENDIENTE' || estado == 'ERROR' || estado == 'SINCRONIZANDO';
 
   factory ElementoCola.fromJson(Map<String, dynamic> json) {
     return ElementoCola(

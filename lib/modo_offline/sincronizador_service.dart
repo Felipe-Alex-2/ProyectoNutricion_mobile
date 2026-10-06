@@ -13,6 +13,7 @@ class SincronizadorService extends ChangeNotifier {
   String? _ultimoMensajeExito;
   String? _ultimoErrorConflicto;
   DateTime? _ultimaSincronizacion;
+  Timer? _timerReintento;
 
   bool get estaSincronizando => _estaSincronizando;
   String? get ultimoMensajeExito => _ultimoMensajeExito;
@@ -27,13 +28,29 @@ class SincronizadorService extends ChangeNotifier {
     required this.colaService,
     required this.apiService,
   }) {
-    // Escuchar cambios de conectividad para auto-sincronizar
+    // 1. Escuchar cambios de conectividad para auto-sincronizar al volver internet
     conectividadService.addListener(_alCambiarConectividad);
+
+    // 2. Escuchar adiciones en la cola offline para procesar de inmediato si hay conexion
+    colaService.addListener(_alCambiarCola);
+
+    // 3. Temporizador periodico de auto-reintento cada 10 segundos si hay pendientes y conexion
+    _timerReintento = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (conectividadService.estaConectado && colaService.tienePendientes && !_estaSincronizando) {
+        sincronizarCola(userId: apiService.currentUserId);
+      }
+    });
   }
 
   void _alCambiarConectividad() {
     if (conectividadService.estaConectado && !_estaSincronizando) {
       sincronizarCola(userId: apiService.currentUserId);
+    }
+  }
+
+  void _alCambiarCola() {
+    if (conectividadService.estaConectado && colaService.tienePendientes && !_estaSincronizando) {
+      Future.microtask(() => sincronizarCola(userId: apiService.currentUserId));
     }
   }
 
@@ -46,7 +63,11 @@ class SincronizadorService extends ChangeNotifier {
       await colaService.cargarCola(userId: targetUserId);
     }
 
-    if (!colaService.tienePendientes) return;
+    final pendientes = colaService.elementos
+        .where((e) => e.esSincronizable)
+        .toList();
+
+    if (pendientes.isEmpty) return;
 
     _estaSincronizando = true;
     _ultimoMensajeExito = null;
@@ -54,7 +75,6 @@ class SincronizadorService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final pendientes = colaService.elementos.where((e) => e.estaPendiente).toList();
       pendientes.sort((a, b) => a.fechaCreacion.compareTo(b.fechaCreacion)); // Orden FIFO estricto
 
       bool huboCambiosEnCitas = false;
@@ -81,7 +101,7 @@ class SincronizadorService extends ChangeNotifier {
               _ultimoMensajeExito = 'Ficha de salud sincronizada exitosamente con el servidor.';
             }
 
-            // Removido con exito
+            // Removido con exito de la cola
             await colaService.remover(elemento.id, userId: elUserId);
           } else if (elemento.metodo == 'PUT') {
             await apiService.put(
@@ -105,13 +125,16 @@ class SincronizadorService extends ChangeNotifier {
         } catch (e) {
           final errorStr = e.toString().toLowerCase();
 
-          // Si el servidor indica conflicto o que ya esta agendada
+          // 1. Conflicto o solapamiento de horario confirmado por backend
           if (errorStr.contains('ya tiene una cita') ||
               errorStr.contains('conflicto') ||
               errorStr.contains('solapamiento') ||
-              errorStr.contains('bad request') ||
-              (e is ApiException && e.statusCode == 400)) {
-            final mensajeAmigable = 'No se pudo reservar la cita: El especialista ya tiene una cita agendada en ese horario. Por favor selecciona otro horario.';
+              (e is ApiException && (e.statusCode == 400 || e.statusCode == 409))) {
+            String mensajeAmigable = 'No se pudo reservar la cita: El especialista ya tiene una cita agendada en ese horario. Por favor selecciona otro horario.';
+            if (e is ApiException && e.message.isNotEmpty) {
+              mensajeAmigable = e.message;
+            }
+
             await colaService.actualizarEstado(
               elemento.id,
               'ERROR_CONFLICTO',
@@ -126,16 +149,16 @@ class SincronizadorService extends ChangeNotifier {
               errorStr.contains('conexion') ||
               errorStr.contains('socket') ||
               errorStr.contains('failed host lookup') ||
-              errorStr.contains('timeout')) {
-            // Error de red temporal: volver a dejarlo pendiente y pausar la sincronizacion
+              errorStr.contains('timeout') ||
+              (e is ApiException && e.statusCode == 0)) {
+            // Error de red transitorio: restaurar a PENDIENTE para que reintente en el proximo ciclo
             await colaService.actualizarEstado(elemento.id, 'PENDIENTE', userId: elUserId);
-            conectividadService.marcarDesconectadoPorErrorHttp();
             break;
           } else {
-            // Otro error
+            // Error general: restaurar a PENDIENTE para continuar intentando
             await colaService.actualizarEstado(
               elemento.id,
-              'ERROR',
+              'PENDIENTE',
               error: e.toString().replaceAll('Exception:', '').trim(),
               userId: elUserId,
             );
@@ -165,6 +188,8 @@ class SincronizadorService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _timerReintento?.cancel();
+    colaService.removeListener(_alCambiarCola);
     conectividadService.removeListener(_alCambiarConectividad);
     super.dispose();
   }

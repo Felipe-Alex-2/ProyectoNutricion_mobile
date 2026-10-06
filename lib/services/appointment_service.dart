@@ -22,10 +22,75 @@ class AppointmentService extends ChangeNotifier {
     this.conectividadService,
   });
 
+  String? get effectiveUserId => currentUserId ?? _apiService.currentUserId;
+
   List<AppointmentModel> get appointments => _appointments;
   List<NutritionistItem> get nutritionists => _nutritionists;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  /// Valida si existe solapamiento dentro de la ventana de 30 minutos (duracion de cada cita).
+  /// Revisa tanto las citas existentes en memoria como las citas encoladas offline.
+  /// Retorna un mensaje explicativo en caso de conflicto, o null si el horario esta libre.
+  String? validateAppointmentOverlap({
+    required String nutritionistId,
+    required DateTime scheduledAt,
+  }) {
+    final userId = effectiveUserId;
+
+    // 1. Verificar contra citas cargadas localmente (_appointments)
+    for (final appt in _appointments) {
+      if (appt.status == 'CANCELLED' || appt.status == 'ERROR_CONFLICTO') {
+        continue;
+      }
+
+      final diffInMinutes = appt.scheduledAt.difference(scheduledAt).inMinutes.abs();
+      if (diffInMinutes < 30) {
+        final hora = '${appt.scheduledAt.hour.toString().padLeft(2, '0')}:${appt.scheduledAt.minute.toString().padLeft(2, '0')}';
+        final fecha = '${appt.scheduledAt.day.toString().padLeft(2, '0')}/${appt.scheduledAt.month.toString().padLeft(2, '0')}';
+
+        if (appt.nutritionistId == nutritionistId) {
+          return 'El especialista ya tiene una cita agendada o pendiente el $fecha a las $hora. Cada consulta dura 30 minutos. Por favor selecciona otro horario.';
+        }
+
+        if (userId != null && userId.isNotEmpty && appt.patientId == userId) {
+          return 'Ya tienes una cita agendada o pendiente el $fecha a las $hora en este intervalo de 30 minutos. Por favor selecciona otro horario.';
+        }
+      }
+    }
+
+    // 2. Verificar contra citas pendientes en la cola offline
+    if (colaService != null) {
+      for (final elemento in colaService!.elementos) {
+        if (!elemento.esCita || elemento.tieneErrorConflicto || elemento.estado == 'COMPLETADO') {
+          continue;
+        }
+
+        final itemNutriId = elemento.cuerpo?['nutritionist_id'] as String?;
+        final itemScheduledStr = elemento.cuerpo?['scheduled_at'] as String?;
+        if (itemScheduledStr != null) {
+          final itemScheduled = DateTime.tryParse(itemScheduledStr);
+          if (itemScheduled != null) {
+            final diffInMinutes = itemScheduled.difference(scheduledAt).inMinutes.abs();
+            if (diffInMinutes < 30) {
+              final hora = '${itemScheduled.hour.toString().padLeft(2, '0')}:${itemScheduled.minute.toString().padLeft(2, '0')}';
+              final fecha = '${itemScheduled.day.toString().padLeft(2, '0')}/${itemScheduled.month.toString().padLeft(2, '0')}';
+
+              if (itemNutriId == nutritionistId) {
+                return 'Ya tienes una cita en cola offline con este especialista el $fecha a las $hora (intervalo de 30 minutos). Por favor selecciona otro horario.';
+              }
+
+              if (userId != null && userId.isNotEmpty && elemento.userId == userId) {
+                return 'Ya tienes una cita en cola offline el $fecha a las $hora en este intervalo de 30 minutos. Por favor selecciona otro horario.';
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
 
   Future<void> fetchAppointments({String? status}) async {
     _isLoading = true;
@@ -58,13 +123,14 @@ class AppointmentService extends ChangeNotifier {
 
   void _incorporarCitasEnCola() {
     if (colaService == null) return;
+    final userVal = effectiveUserId ?? '';
     final citasEnCola = colaService!.elementos.where((e) => e.esCita).toList();
     for (final item in citasEnCola) {
       final index = _appointments.indexWhere((a) => a.id == item.id);
       final scheduledIso = item.cuerpo?['scheduled_at'] as String? ?? DateTime.now().toIso8601String();
       final localAppt = AppointmentModel(
         id: item.id,
-        patientId: item.userId,
+        patientId: item.userId.isNotEmpty ? item.userId : userVal,
         nutritionistId: item.cuerpo?['nutritionist_id'] as String? ?? '',
         nutritionistName: item.metadata?['nutritionist_name'] as String? ?? 'Especialista Nutricional',
         scheduledAt: DateTime.parse(scheduledIso),
@@ -113,6 +179,18 @@ class AppointmentService extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    // 1. Validar solapamiento localmente antes de cualquier accion (intervalo de 30 minutos)
+    final conflictError = validateAppointmentOverlap(
+      nutritionistId: nutritionistId,
+      scheduledAt: scheduledAt,
+    );
+    if (conflictError != null) {
+      _errorMessage = conflictError;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
     final body = {
       'nutritionist_id': nutritionistId,
       'scheduled_at': scheduledAt.toIso8601String(),
@@ -148,8 +226,12 @@ class AppointmentService extends ChangeNotifier {
       if (errorStr.contains('ya tiene una cita') ||
           errorStr.contains('conflicto') ||
           errorStr.contains('solapamiento') ||
-          (e is ApiException && e.statusCode == 400)) {
-        _errorMessage = 'El especialista ya tiene una cita agendada en ese horario. Por favor selecciona otro horario.';
+          (e is ApiException && (e.statusCode == 400 || e.statusCode == 409))) {
+        if (e is ApiException && e.message.isNotEmpty) {
+          _errorMessage = e.message;
+        } else {
+          _errorMessage = 'El especialista ya tiene una cita agendada en ese horario. Por favor selecciona otro horario.';
+        }
         _isLoading = false;
         notifyListeners();
         return false;
@@ -158,10 +240,11 @@ class AppointmentService extends ChangeNotifier {
       // Si es error de conectividad de red, guardar en cola offline
       if (colaService != null &&
           (errorStr.contains('conexión') ||
+           errorStr.contains('conexion') ||
            errorStr.contains('socket') ||
            errorStr.contains('failed host lookup') ||
-           errorStr.contains('timeout'))) {
-        conectividadService?.marcarDesconectadoPorErrorHttp();
+           errorStr.contains('timeout') ||
+           (e is ApiException && e.statusCode == 0))) {
         return await _encolarCitaOffline(
           nutritionistId: nutritionistId,
           nutritionistName: nutritionistName,
@@ -185,10 +268,11 @@ class AppointmentService extends ChangeNotifier {
   }) async {
     final offlineId = 'offline_appt_${DateTime.now().millisecondsSinceEpoch}';
     final nombreEspecialista = nutritionistName ?? 'Especialista Nutricional';
+    final userVal = effectiveUserId ?? '';
 
     final elemento = ElementoCola(
       id: offlineId,
-      userId: currentUserId ?? '',
+      userId: userVal,
       metodo: 'POST',
       endpoint: '/appointments',
       tipoAccion: 'CREAR_CITA',
@@ -206,7 +290,7 @@ class AppointmentService extends ChangeNotifier {
 
     final localAppt = AppointmentModel(
       id: offlineId,
-      patientId: currentUserId ?? '',
+      patientId: userVal,
       nutritionistId: nutritionistId,
       nutritionistName: nombreEspecialista,
       scheduledAt: scheduledAt,

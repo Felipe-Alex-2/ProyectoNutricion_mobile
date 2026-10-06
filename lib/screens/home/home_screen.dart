@@ -2289,35 +2289,40 @@ class _HomeScreenState extends State<HomeScreen> {
                                 );
 
                                 if (context.mounted) {
-                                  Navigator.pop(context);
-                                  if (success) {
-                                    final esPendienteOffline = estaOffline ||
-                                        (apptService.appointments.isNotEmpty &&
-                                            apptService.appointments.first.isOfflinePending);
-
-                                    if (esPendienteOffline) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Cita guardada como pendiente (sin conexion). Se enviara automaticamente a tu especialista cuando te conectes a internet.'),
-                                          backgroundColor: Color(0xFFD97706),
-                                          duration: Duration(seconds: 4),
-                                        ),
-                                      );
-                                    } else {
-                                      context.read<NotificationService>().fetchNotifications();
-                                      context.read<NotificationService>().fetchUnreadCount();
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('¡Cita solicitada con éxito! Queda pendiente de confirmación por tu especialista.'),
-                                          backgroundColor: Color(0xFF059669),
-                                        ),
-                                      );
-                                    }
-                                  } else {
+                                  if (!success) {
+                                    setModalState(() {
+                                      isSubmitting = false;
+                                    });
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(apptService.errorMessage ?? 'Error al agendar la cita'),
                                         backgroundColor: Colors.redAccent,
+                                        duration: const Duration(seconds: 4),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  Navigator.pop(context);
+                                  final esPendienteOffline = estaOffline ||
+                                      (apptService.appointments.isNotEmpty &&
+                                          apptService.appointments.first.isOfflinePending);
+
+                                  if (esPendienteOffline) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Cita guardada como pendiente (sin conexion). Se enviara automaticamente a tu especialista cuando te conectes a internet.'),
+                                        backgroundColor: Color(0xFFD97706),
+                                        duration: Duration(seconds: 4),
+                                      ),
+                                    );
+                                  } else {
+                                    context.read<NotificationService>().fetchNotifications();
+                                    context.read<NotificationService>().fetchUnreadCount();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Cita solicitada con exito. Queda pendiente de confirmacion por tu especialista.'),
+                                        backgroundColor: Color(0xFF059669),
                                       ),
                                     );
                                   }

@@ -9,7 +9,7 @@ class ColaSincronizacionService extends ChangeNotifier {
   final List<ElementoCola> _colaMemoria = [];
 
   List<ElementoCola> get elementos => List.unmodifiable(_colaMemoria);
-  int get cantidadPendientes => _colaMemoria.where((e) => e.estaPendiente).length;
+  int get cantidadPendientes => _colaMemoria.where((e) => e.esSincronizable).length;
   bool get tienePendientes => cantidadPendientes > 0;
   List<ElementoCola> get conflictos => _colaMemoria.where((e) => e.tieneErrorConflicto).toList();
 
@@ -32,22 +32,56 @@ class ColaSincronizacionService extends ChangeNotifier {
   Future<void> cargarCola({String? userId}) async {
     try {
       final file = await _getFile(userId);
-      if (!await file.exists()) {
-        _colaMemoria.clear();
-        notifyListeners();
-        return;
+      final List<ElementoCola> cargados = [];
+
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        if (content.isNotEmpty) {
+          final List<dynamic> list = jsonDecode(content);
+          cargados.addAll(list.map((item) => ElementoCola.fromJson(item as Map<String, dynamic>)));
+        }
       }
 
-      final content = await file.readAsString();
-      if (content.isEmpty) {
-        _colaMemoria.clear();
-        notifyListeners();
-        return;
+      // Si se especificó un usuario, recuperar y fusionar elementos huérfanos de la cola por defecto
+      if (userId != null && userId.isNotEmpty) {
+        final defaultFile = await _getFile(null);
+        if (await defaultFile.exists()) {
+          try {
+            final defContent = await defaultFile.readAsString();
+            if (defContent.isNotEmpty) {
+              final List<dynamic> defList = jsonDecode(defContent);
+              for (final item in defList) {
+                final elem = ElementoCola.fromJson(item as Map<String, dynamic>);
+                if (!cargados.any((existing) => existing.id == elem.id)) {
+                  cargados.add(ElementoCola(
+                    id: elem.id,
+                    userId: userId,
+                    metodo: elem.metodo,
+                    endpoint: elem.endpoint,
+                    cuerpo: elem.cuerpo,
+                    tipoAccion: elem.tipoAccion,
+                    descripcionHumana: elem.descripcionHumana,
+                    fechaCreacion: elem.fechaCreacion,
+                    reintentos: elem.reintentos,
+                    estado: elem.estado,
+                    mensajeError: elem.mensajeError,
+                    metadata: elem.metadata,
+                  ));
+                }
+              }
+            }
+            await defaultFile.delete();
+          } catch (e) {
+            debugPrint('[ColaSincronizacionService] Advertencia al migrar cola default: $e');
+          }
+        }
       }
 
-      final List<dynamic> list = jsonDecode(content);
       _colaMemoria.clear();
-      _colaMemoria.addAll(list.map((item) => ElementoCola.fromJson(item as Map<String, dynamic>)));
+      _colaMemoria.addAll(cargados);
+      if (userId != null && userId.isNotEmpty && cargados.isNotEmpty) {
+        await _guardarDisco(userId);
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('[ColaSincronizacionService] Error al cargar cola: $e');
