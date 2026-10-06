@@ -46,6 +46,9 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> checkForNewNotifications() async {
+    if (_apiService.conectividadService?.estaEnPrimerPlano == false) {
+      return;
+    }
     try {
       final response = await _apiService.get('/notifications?limit=25');
       if (response is List) {
