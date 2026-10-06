@@ -103,6 +103,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final notifService = context.watch<NotificationService>();
     final unreadCount = notifService.unreadCount;
     final isDark = themeService.isDarkMode;
+    final subService = context.watch<SubscriptionService>();
+    final isPremium = subService.isPremium;
 
     final primaryGreen = isDark ? AppTheme.primaryGreenDark : AppTheme.primaryGreen;
     final cardBg = isDark ? AppTheme.darkCard : AppTheme.lightCard;
@@ -172,11 +174,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            Positioned(
-              right: 0,
-              top: MediaQuery.of(context).size.height * 0.42,
-              child: _buildFloatingCarlitosButton(context, isDark),
-            ),
+            if (isPremium)
+              Positioned(
+                right: 0,
+                top: MediaQuery.of(context).size.height * 0.42,
+                child: _buildFloatingCarlitosButton(context, isDark),
+              ),
           ],
         ),
       ),

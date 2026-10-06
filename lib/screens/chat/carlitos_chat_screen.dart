@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../services/carlitos_chat_service.dart';
 import '../../services/theme_service.dart';
+import '../../services/subscription_service.dart';
+import '../subscriptions/subscriptions_screen.dart';
 import '../../modo_offline/conectividad_service.dart';
 
 class CarlitosChatScreen extends StatefulWidget {
@@ -27,7 +29,9 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CarlitosChatService>().fetchHistory();
+      if (context.read<SubscriptionService>().isPremium) {
+        context.read<CarlitosChatService>().fetchHistory();
+      }
     });
   }
 
@@ -88,6 +92,122 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
     final cardBg = isDark ? AppTheme.darkCard : AppTheme.lightCard;
     final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
     final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+
+    final subService = context.watch<SubscriptionService>();
+    final isPremium = subService.isPremium;
+
+    if (!isPremium) {
+      return Scaffold(
+        backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
+        appBar: AppBar(
+          backgroundColor: isDark ? AppTheme.darkSidebar : AppTheme.lightSidebar,
+          elevation: 0,
+          title: Text(
+            'Carlitos (Asistente IA)',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
+          ),
+        ),
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 90,
+                      height: 90,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFA855F7).withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFA855F7).withValues(alpha: 0.35),
+                          width: 2,
+                        ),
+                      ),
+                      child: Image.asset(
+                        'assets/images/peter_silhouette_purple.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFA855F7).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.workspace_premium_rounded, size: 16, color: Color(0xFF9333EA)),
+                          SizedBox(width: 6),
+                          Text(
+                            'Exclusivo Plan Premium IA',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF9333EA),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Activa a Carlitos IA',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: textPrimary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'El asistente conversacional nutricional personalizado está disponible exclusivamente para usuarios con el Plan Premium IA (\$5.00 USD/mes).\n\nSuscríbete para recibir orientación continua, aclaración de dudas sobre tu alimentación y sugerencias con inteligencia artificial según tu perfil.',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: textSecondary,
+                        height: 1.45,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 26),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryGreen,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.star_rounded, color: Colors.white),
+                        label: const Text(
+                          'Obtener Plan Premium IA (\$5 USD)',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const SubscriptionsScreen()),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     final chatService = context.watch<CarlitosChatService>();
     final messages = chatService.messages;

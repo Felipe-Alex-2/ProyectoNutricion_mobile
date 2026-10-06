@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/user.dart';
+import '../models/branch_model.dart';
 import 'api_service.dart';
 import 'storage_service.dart';
 
@@ -102,20 +103,45 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<bool> register(String email, String password, String fullName) async {
+  Future<List<Branch>> fetchPublicBranches() async {
+    try {
+      final res = await _apiService.get('/tenants/public', includeAuth: false);
+      if (res is List) {
+        return res
+            .map((item) => Branch.fromJson(item as Map<String, dynamic>))
+            .where((b) => b.isActive)
+            .toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<bool> register(
+    String email,
+    String password,
+    String fullName, {
+    String? tenantId,
+  }) async {
     _status = AuthStatus.authenticating;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      final body = <String, dynamic>{
+        'email': email.trim(),
+        'password': password,
+        'full_name': fullName.trim(),
+        'client_platform': 'mobile',
+      };
+      if (tenantId != null && tenantId.isNotEmpty) {
+        body['tenant_id'] = tenantId;
+      }
+
       await _apiService.post(
         '/auth/register',
-        body: {
-          'email': email.trim(),
-          'password': password,
-          'full_name': fullName.trim(),
-          'client_platform': 'mobile',
-        },
+        body: body,
         includeAuth: false,
       );
 
