@@ -16,6 +16,8 @@ class PatientService extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get hasNutritionist => _linkedNutritionist != null;
 
+  void reset() { _linkedNutritionist = null; _errorMessage = null; _isLoading = false; notifyListeners(); }
+
   Future<void> fetchMyNutritionist() async {
     _isLoading = true;
     _errorMessage = null;

@@ -1,266 +1,147 @@
+import 'dart:typed_data';
+import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import 'storage_service.dart';
-
 import '../modo_offline/cache_local_service.dart';
 import '../modo_offline/conectividad_service.dart';
 
 class ApiException implements Exception {
   final String message;
   final int statusCode;
-
   ApiException(this.message, {this.statusCode = 500});
-
   @override
   String toString() => message;
 }
 
 class ApiService {
   final StorageService _storageService;
+  final http.Client _client;
   CacheLocalService? cacheService;
   ConectividadService? conectividadService;
   String? currentUserId;
+  Future<bool>? _refreshing;
+  static const _timeout = Duration(seconds: 70);
+  ApiService(this._storageService, {this.cacheService, this.conectividadService, http.Client? client})
+      : _client = client ?? http.Client();
 
-  ApiService(
-    this._storageService, {
-    this.cacheService,
-    this.conectividadService,
-  });
+  Uri _url(String endpoint) => Uri.parse('${ApiConfig.baseUrl}$endpoint');
+  Future<Map<String, String>> _headers(bool auth) async {
+    final token = auth ? await _storageService.getAccessToken() : null;
+    return {'Content-Type': 'application/json', 'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token'};
+  }
 
-  Future<Map<String, String>> _getHeaders({bool includeAuth = true}) async {
-    final headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-
-    if (includeAuth) {
-      final token = await _storageService.getAccessToken();
-      if (token != null) {
-        headers['Authorization'] = 'Bearer $token';
-      }
+  Future<bool> _refresh() => _refreshing ??= _doRefresh().whenComplete(() => _refreshing = null);
+  Future<bool> _doRefresh() async {
+    final refreshToken = await _storageService.getRefreshToken();
+    if (refreshToken == null) return false;
+    final response = await _client.post(_url('/auth/refresh'), headers: await _headers(false),
+      body: jsonEncode({'refresh_token': refreshToken})).timeout(_timeout);
+    if (await _storageService.getRefreshToken() != refreshToken) return false;
+    if (response.statusCode == 401) {
+      await _storageService.clearTokens();
+      return false;
     }
+    final data = _processResponse(response) as Map<String, dynamic>;
+    await _storageService.saveTokens(accessToken: data['access_token'], refreshToken: data['refresh_token']);
+    return true;
+  }
 
-    return headers;
+  Future<dynamic> _send(Future<http.Response> Function(Map<String, String>) send, bool auth, {bool binary = false}) async {
+    final owner = currentUserId;
+    try {
+      final headers = await _headers(auth);
+      var response = await send(headers).timeout(_timeout);
+      if (auth && owner != currentUserId) throw ApiException("La cuenta cambió durante la solicitud.", statusCode: 401);
+      if (auth && response.statusCode == 401) {
+        final latest = await _storageService.getAccessToken();
+        final changed = latest != null && headers['Authorization'] != 'Bearer $latest';
+        if (changed || await _refresh()) {
+          if (owner != currentUserId) throw ApiException("La cuenta cambió durante la solicitud.", statusCode: 401);
+          response = await send(await _headers(auth)).timeout(_timeout);
+        }
+      }
+      if (auth && owner != currentUserId) throw ApiException("La cuenta cambió durante la solicitud.", statusCode: 401);
+      if (binary && response.statusCode >= 200 && response.statusCode < 300) return response.bodyBytes;
+      return _processResponse(response);
+    } on ApiException {
+      rethrow;
+    } on TimeoutException {
+      throw ApiException('El servidor tardó demasiado en responder.', statusCode: 0);
+    } on http.ClientException {
+      conectividadService?.marcarDesconectadoPorErrorHttp();
+      throw ApiException('Error de conexión con el servidor.', statusCode: 0);
+    }
+  }
+
+  Future<Uint8List> getBytes(String endpoint) async {
+    return await _send((headers) => _client.get(_url(endpoint), headers: headers), true, binary: true) as Uint8List;
   }
 
   Future<dynamic> get(String endpoint, {bool includeAuth = true, bool usarCache = true}) async {
-    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
-    final headers = await _getHeaders(includeAuth: includeAuth);
-
-    // Si no hay conexión y el caché está disponible, consultar primero el caché local
-    if (conectividadService != null && !conectividadService!.estaConectado && usarCache && cacheService != null) {
-      final cached = await cacheService!.obtener(endpoint, userId: currentUserId);
-      if (cached != null) {
-        debugPrint('[ApiService] Sin conexión: Sirviendo desde caché para $endpoint');
-        return cached;
+    final owner = currentUserId;
+    final cacheAllowed = usarCache && (!includeAuth || owner != null) && !endpoint.startsWith('/subscriptions/');
+    try {
+      if (conectividadService?.estaConectado == false && cacheAllowed) {
+        final cached = await cacheService?.obtener(endpoint, userId: owner);
+        if (cached != null) return cached;
       }
-    }
-
-    try {
-      final response = await http.get(url, headers: headers).timeout(const Duration(seconds: 12));
-      final data = _processResponse(response);
-
-      // Guardar en caché local si la respuesta fue exitosa
-      if (usarCache && cacheService != null && data != null) {
-        await cacheService!.guardar(endpoint, data, userId: currentUserId);
+      final result = await _send((headers) => _client.get(_url(endpoint), headers: headers), includeAuth);
+      if (cacheAllowed && result != null && owner == currentUserId) {
+        await cacheService?.guardar(endpoint, result, userId: owner);
       }
-      return data;
-    } catch (e) {
-      if (e is ApiException) rethrow;
-
-      // Error de red/conectividad
-      conectividadService?.marcarDesconectadoPorErrorHttp();
-
-      // Fallback a caché local
-      if (usarCache && cacheService != null) {
-        final cached = await cacheService!.obtener(endpoint, userId: currentUserId);
-        if (cached != null) {
-          debugPrint('[ApiService] Fallback exitoso a caché offline para $endpoint');
-          return cached;
-        }
+      return result;
+    } on ApiException catch (error) {
+      if (error.statusCode == 0 && cacheAllowed) {
+        final cached = await cacheService?.obtener(endpoint, userId: owner);
+        if (cached != null && owner == currentUserId) return cached;
       }
-
-      throw ApiException('Error de conexión con el servidor ($e)');
+      rethrow;
     }
   }
 
-  Future<dynamic> post(
-    String endpoint, {
-    Map<String, dynamic>? body,
-    bool includeAuth = true,
-  }) async {
-    if (conectividadService != null && !conectividadService!.estaConectado) {
-      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
-    }
-
-    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
-    final headers = await _getHeaders(includeAuth: includeAuth);
-
-    try {
-      final response = await http.post(
-        url,
-        headers: headers,
-        body: body != null ? jsonEncode(body) : null,
-      );
-      return _processResponse(response);
-    } catch (e) {
-      if (e is ApiException) rethrow;
-      conectividadService?.marcarDesconectadoPorErrorHttp();
-      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
-    }
+  Future<dynamic> _write(String method, String endpoint, Map<String, dynamic>? body, bool auth, {String? idempotencyKey}) {
+    return _send((headers) {
+      final data = body == null ? null : jsonEncode(body);
+      if (idempotencyKey != null) headers['Idempotency-Key'] = idempotencyKey;
+      final url = _url(endpoint);
+      return switch (method) {
+        'POST' => _client.post(url, headers: headers, body: data),
+        'PUT' => _client.put(url, headers: headers, body: data),
+        'PATCH' => _client.patch(url, headers: headers, body: data),
+        _ => _client.delete(url, headers: headers, body: data),
+      };
+    }, auth);
   }
+  Future<dynamic> post(String endpoint, {Map<String, dynamic>? body, bool includeAuth = true, String? idempotencyKey}) => _write('POST', endpoint, body, includeAuth, idempotencyKey: idempotencyKey);
+  Future<dynamic> put(String endpoint, {Map<String, dynamic>? body, bool includeAuth = true}) => _write('PUT', endpoint, body, includeAuth);
+  Future<dynamic> patch(String endpoint, {Map<String, dynamic>? body, bool includeAuth = true}) => _write('PATCH', endpoint, body, includeAuth);
+  Future<dynamic> delete(String endpoint, {Map<String, dynamic>? body, bool includeAuth = true}) => _write('DELETE', endpoint, body, includeAuth);
 
-  Future<dynamic> put(
-    String endpoint, {
-    Map<String, dynamic>? body,
-    bool includeAuth = true,
-  }) async {
-    if (conectividadService != null && !conectividadService!.estaConectado) {
-      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
-    }
-
-    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
-    final headers = await _getHeaders(includeAuth: includeAuth);
-
-    try {
-      final response = await http.put(
-        url,
-        headers: headers,
-        body: body != null ? jsonEncode(body) : null,
-      );
-      return _processResponse(response);
-    } catch (e) {
-      if (e is ApiException) rethrow;
-      conectividadService?.marcarDesconectadoPorErrorHttp();
-      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
-    }
-  }
-
-  Future<dynamic> patch(
-    String endpoint, {
-    Map<String, dynamic>? body,
-    bool includeAuth = true,
-  }) async {
-    if (conectividadService != null && !conectividadService!.estaConectado) {
-      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
-    }
-
-    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
-    final headers = await _getHeaders(includeAuth: includeAuth);
-
-    try {
-      final response = await http.patch(
-        url,
-        headers: headers,
-        body: body != null ? jsonEncode(body) : null,
-      );
-      return _processResponse(response);
-    } catch (e) {
-      if (e is ApiException) rethrow;
-      conectividadService?.marcarDesconectadoPorErrorHttp();
-      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
-    }
-  }
-
-  Future<dynamic> delete(
-    String endpoint, {
-    Map<String, dynamic>? body,
-    bool includeAuth = true,
-  }) async {
-    if (conectividadService != null && !conectividadService!.estaConectado) {
-      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
-    }
-
-    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
-    final headers = await _getHeaders(includeAuth: includeAuth);
-
-    try {
-      final response = await http.delete(
-        url,
-        headers: headers,
-        body: body != null ? jsonEncode(body) : null,
-      );
-      return _processResponse(response);
-    } catch (e) {
-      if (e is ApiException) rethrow;
-      conectividadService?.marcarDesconectadoPorErrorHttp();
-      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
-    }
-  }
-
-  Future<dynamic> postMultipart(
-    String endpoint, {
-    required List<int> fileBytes,
-    required String filename,
-    String fieldName = 'file',
-    bool includeAuth = true,
-  }) async {
-    if (conectividadService != null && !conectividadService!.estaConectado) {
-      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
-    }
-
-    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
-    final request = http.MultipartRequest('POST', url);
-
-    if (includeAuth) {
-      final token = await _storageService.getAccessToken();
-      if (token != null) {
-        request.headers['Authorization'] = 'Bearer $token';
-      }
-    }
-    request.headers['Accept'] = 'application/json';
-
-    request.files.add(
-      http.MultipartFile.fromBytes(
-        fieldName,
-        fileBytes,
-        filename: filename,
-      ),
-    );
-
-    try {
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      return _processResponse(response);
-    } catch (e) {
-      if (e is ApiException) rethrow;
-      conectividadService?.marcarDesconectadoPorErrorHttp();
-      throw ApiException('Error: estás sin conexión a internet', statusCode: 0);
-    }
+  Future<dynamic> postMultipart(String endpoint, {required List<int> fileBytes, required String filename, String fieldName = 'file', bool includeAuth = true}) {
+    return _send((headers) async {
+      final request = http.MultipartRequest('POST', _url(endpoint));
+      request.headers.addAll(headers..remove('Content-Type'));
+      request.files.add(http.MultipartFile.fromBytes(fieldName, fileBytes, filename: filename));
+      final response = await _client.send(request).timeout(_timeout);
+      return http.Response.fromStream(response).timeout(_timeout);
+    }, includeAuth);
   }
 
   dynamic _processResponse(http.Response response) {
-    dynamic decodedBody;
-    try {
-      decodedBody = jsonDecode(utf8.decode(response.bodyBytes));
-    } catch (_) {
-      decodedBody = null;
+    dynamic data;
+    try { data = jsonDecode(utf8.decode(response.bodyBytes)); } catch (_) { data = null; }
+    if (response.statusCode >= 200 && response.statusCode < 300) return data;
+    String message = 'No se pudo completar la solicitud.';
+    if (data is Map) {
+      final detail = data['detail'] ?? data['message'];
+      if (detail is String) message = detail;
+      if (detail is List && detail.isNotEmpty) message = detail.first['msg']?.toString() ?? message;
     }
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return decodedBody;
-    }
-
-    String errorMessage = 'Ocurrió un error inesperado';
-    if (decodedBody is Map) {
-      if (decodedBody.containsKey('detail')) {
-        final detail = decodedBody['detail'];
-        if (detail is String) {
-          errorMessage = detail;
-        } else if (detail is List && detail.isNotEmpty) {
-          errorMessage = detail[0]['msg'] ?? 'Error de validación';
-        }
-      } else if (decodedBody.containsKey('message')) {
-        errorMessage = decodedBody['message'];
-      }
-    }
-
-    if (response.statusCode == 401 && errorMessage.toLowerCase().contains('invalid or expired token')) {
-      errorMessage = 'Error: sesión expirada. Inicia sesión nuevamente.';
-    }
-
-    throw ApiException(errorMessage, statusCode: response.statusCode);
+    if (response.statusCode == 401) message = 'Sesión expirada. Inicia sesión nuevamente.';
+    throw ApiException(message, statusCode: response.statusCode);
   }
+  void dispose() => _client.close();
 }

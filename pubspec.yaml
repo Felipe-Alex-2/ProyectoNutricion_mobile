@@ -41,6 +41,8 @@ dependencies:
   image_picker: ^1.2.3
   path_provider: ^2.1.6
   connectivity_plus: ^7.3.2
+  printing: ^5.15.1
+  flutter_file_dialog: ^3.3.3
 
 
 dev_dependencies:
@@ -71,6 +73,15 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  fonts:
+    - family: NutriSans
+      fonts:
+        - asset: assets/fonts/nutri-sans-regular.ttf
+        - asset: assets/fonts/nutri-sans-medium.ttf
+          weight: 500
+        - asset: assets/fonts/nutri-sans-bold.ttf
+          weight: 700
 
   assets:
     - assets/images/

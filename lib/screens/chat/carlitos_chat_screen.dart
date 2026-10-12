@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../config/theme.dart';
 import '../../services/carlitos_chat_service.dart';
 import '../../services/theme_service.dart';
@@ -29,7 +30,7 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.read<SubscriptionService>().isPremium) {
+      if (mounted && context.read<SubscriptionService>().isPremium) {
         context.read<CarlitosChatService>().fetchHistory();
       }
     });
@@ -88,10 +89,16 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
   Widget build(BuildContext context) {
     final themeService = context.watch<ThemeService>();
     final isDark = themeService.isDarkMode;
-    final primaryGreen = isDark ? AppTheme.primaryGreenDark : AppTheme.primaryGreen;
+    final primaryGreen = isDark
+        ? AppTheme.primaryGreenDark
+        : AppTheme.primaryGreen;
     final cardBg = isDark ? AppTheme.darkCard : AppTheme.lightCard;
-    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+    final textPrimary = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final textSecondary = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
 
     final subService = context.watch<SubscriptionService>();
     final isPremium = subService.isPremium;
@@ -100,11 +107,17 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
       return Scaffold(
         backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
         appBar: AppBar(
-          backgroundColor: isDark ? AppTheme.darkSidebar : AppTheme.lightSidebar,
+          backgroundColor: isDark
+              ? AppTheme.darkSidebar
+              : AppTheme.lightSidebar,
           elevation: 0,
           title: Text(
-            'Carlitos (Asistente IA)',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
+            'Carlitos IA',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: textPrimary,
+            ),
           ),
         ),
         body: SafeArea(
@@ -121,36 +134,44 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                       height: 90,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFA855F7).withValues(alpha: 0.12),
+                        color: AppTheme.primaryGreen.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFFA855F7).withValues(alpha: 0.35),
+                          color: AppTheme.primaryGreen.withValues(alpha: 0.35),
                           width: 2,
                         ),
                       ),
-                      child: Image.asset(
-                        'assets/images/peter_silhouette_purple.png',
-                        fit: BoxFit.contain,
+                      child: Icon(
+                        Icons.eco_outlined,
+                        color: primaryGreen,
+                        size: 20,
                       ),
                     ),
                     const SizedBox(height: 18),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFA855F7).withValues(alpha: 0.15),
+                        color: AppTheme.primaryGreen.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.workspace_premium_rounded, size: 16, color: Color(0xFF9333EA)),
+                          Icon(
+                            Icons.workspace_premium_rounded,
+                            size: 16,
+                            color: AppTheme.primaryGreen,
+                          ),
                           SizedBox(width: 6),
                           Text(
                             'Exclusivo Plan Premium IA',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF9333EA),
+                              color: AppTheme.primaryGreen,
                             ),
                           ),
                         ],
@@ -187,15 +208,24 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        icon: const Icon(Icons.star_rounded, color: Colors.white),
+                        icon: const Icon(
+                          Icons.star_rounded,
+                          color: Colors.white,
+                        ),
                         label: const Text(
                           'Obtener Plan Premium IA (\$5 USD)',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const SubscriptionsScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const SubscriptionsScreen(),
+                            ),
                           );
                         },
                       ),
@@ -226,28 +256,34 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
               decoration: BoxDecoration(
                 color: primaryGreen.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
-                border: Border.all(color: primaryGreen.withValues(alpha: 0.3), width: 1.5),
+                border: Border.all(
+                  color: primaryGreen.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
               ),
               child: ClipOval(
-                child: Image.asset(
-                  'assets/images/peter_griffin.png',
-                  fit: BoxFit.contain,
-                ),
+                child: Icon(Icons.eco_outlined, color: primaryGreen, size: 20),
               ),
             ),
             const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Carlitos (Asistente IA)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
-                ),
-                Text(
-                  'Apoyo nutricional preventivo',
-                  style: TextStyle(fontSize: 11, color: textSecondary),
-                ),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Carlitos IA',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: textPrimary,
+                    ),
+                  ),
+                  Text(
+                    'Tu asistente de nutrición',
+                    style: TextStyle(fontSize: 11, color: textSecondary),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -260,13 +296,23 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                 context: context,
                 builder: (ctx) => AlertDialog(
                   title: const Text('Limpiar Chat'),
-                  content: const Text('¿Deseas vaciar los mensajes con Carlitos?'),
+                  content: const Text(
+                    '¿Deseas vaciar los mensajes con Carlitos?',
+                  ),
                   actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancelar'),
+                    ),
                     ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accentCoral),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentCoral,
+                      ),
                       onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Vaciar', style: TextStyle(color: Colors.white)),
+                      child: const Text(
+                        'Vaciar',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ),
                   ],
                 ),
@@ -292,8 +338,12 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Carlitos ofrece sugerencias educativas según tu perfil. No sustituye la consulta médica.',
-                      style: TextStyle(fontSize: 11, color: primaryGreen, fontWeight: FontWeight.w500),
+                      'Complementa la orientación de tu nutricionista.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: primaryGreen,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
@@ -303,7 +353,7 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
             // Messages List
             Expanded(
               child: messages.isEmpty
-                  ? Center(
+                  ? SingleChildScrollView(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Column(
@@ -322,22 +372,30 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                                 ),
                               ),
                               child: ClipOval(
-                                child: Image.asset(
-                                  'assets/images/peter_griffin.png',
-                                  fit: BoxFit.contain,
+                                child: Icon(
+                                  Icons.eco_outlined,
+                                  color: primaryGreen,
                                 ),
                               ),
                             ),
                             const SizedBox(height: 16),
                             Text(
                               '¡Hola! Soy Carlitos',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textPrimary),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: textPrimary,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             Text(
                               'Conozco tus objetivos y alergias registradas en tu ficha. Pregúntame sobre alimentos, dudas de tu plan o alternativas saludables.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 13, color: textSecondary, height: 1.4),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: textSecondary,
+                                height: 1.4,
+                              ),
                             ),
                             const SizedBox(height: 24),
                             Wrap(
@@ -347,7 +405,13 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                               children: _quickSuggestions.map((suggestion) {
                                 return ActionChip(
                                   backgroundColor: cardBg,
-                                  label: Text(suggestion, style: TextStyle(fontSize: 12, color: textPrimary)),
+                                  label: Text(
+                                    suggestion,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: textPrimary,
+                                    ),
+                                  ),
                                   onPressed: () => _handleSend(suggestion),
                                 );
                               }).toList(),
@@ -365,25 +429,36 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                         final isUser = msg.role == 'user';
 
                         return Align(
-                          alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                          alignment: isUser
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
                           child: Container(
                             margin: const EdgeInsets.symmetric(vertical: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             constraints: BoxConstraints(
                               maxWidth: MediaQuery.of(context).size.width * 0.8,
                             ),
                             decoration: BoxDecoration(
-                              color: isUser ? primaryGreen : cardBg,
+                              color: isUser ? AppTheme.primaryGreen : cardBg,
                               borderRadius: BorderRadius.only(
                                 topLeft: const Radius.circular(16),
                                 topRight: const Radius.circular(16),
-                                bottomLeft: isUser ? const Radius.circular(16) : const Radius.circular(4),
-                                bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
+                                bottomLeft: isUser
+                                    ? const Radius.circular(16)
+                                    : const Radius.circular(4),
+                                bottomRight: isUser
+                                    ? const Radius.circular(4)
+                                    : const Radius.circular(16),
                               ),
                               border: isUser
                                   ? null
                                   : Border.all(
-                                      color: isDark ? Colors.white10 : const Color(0x0F000000),
+                                      color: isDark
+                                          ? Colors.white10
+                                          : const Color(0x0F000000),
                                     ),
                               boxShadow: [
                                 BoxShadow(
@@ -394,7 +469,9 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                               ],
                             ),
                             child: Column(
-                              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              crossAxisAlignment: isUser
+                                  ? CrossAxisAlignment.end
+                                  : CrossAxisAlignment.start,
                               children: [
                                 if (!isUser) ...[
                                   Row(
@@ -403,9 +480,9 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                                       SizedBox(
                                         width: 16,
                                         height: 16,
-                                        child: Image.asset(
-                                          'assets/images/peter_griffin.png',
-                                          fit: BoxFit.contain,
+                                        child: Icon(
+                                          Icons.eco_outlined,
+                                          color: primaryGreen,
                                         ),
                                       ),
                                       const SizedBox(width: 4),
@@ -439,16 +516,27 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
 
             if (chatService.isLoading) ...[
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 6,
+                ),
                 child: Row(
                   children: [
                     SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: primaryGreen),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: primaryGreen,
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    Text('Carlitos está analizando tu consulta...', style: TextStyle(fontSize: 12, color: textSecondary)),
+                    Expanded(
+                      child: Text(
+                        'Carlitos está preparando su respuesta…',
+                        style: TextStyle(fontSize: 12, color: textSecondary),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -459,7 +547,11 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 color: isDark ? AppTheme.darkSidebar : AppTheme.lightSidebar,
-                border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black12)),
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? Colors.white10 : Colors.black12,
+                  ),
+                ),
               ),
               child: Row(
                 children: [
@@ -468,28 +560,43 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                       controller: _textController,
                       style: TextStyle(color: textPrimary, fontSize: 14),
                       decoration: InputDecoration(
-                        hintText: 'Escribe tu pregunta a Carlitos...',
-                        hintStyle: TextStyle(color: textSecondary, fontSize: 13),
+                        hintText: 'Escribe tu pregunta…',
+                        hintStyle: TextStyle(
+                          color: textSecondary,
+                          fontSize: 13,
+                        ),
                         filled: true,
                         fillColor: cardBg,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
                         ),
                       ),
-                      onSubmitted: (_) => _handleSend(),
+                      onSubmitted: (_) {
+                        if (!chatService.isLoading) _handleSend();
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
                   Container(
                     decoration: BoxDecoration(
-                      color: primaryGreen,
+                      color: AppTheme.primaryGreen,
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-                      onPressed: () => _handleSend(),
+                      icon: const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      tooltip: 'Enviar mensaje',
+                      onPressed: chatService.isLoading
+                          ? null
+                          : () => _handleSend(),
                     ),
                   ),
                 ],

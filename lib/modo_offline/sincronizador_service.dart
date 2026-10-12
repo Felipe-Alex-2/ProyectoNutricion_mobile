@@ -59,12 +59,13 @@ class SincronizadorService extends ChangeNotifier {
     if (_estaSincronizando || !conectividadService.estaConectado) return;
 
     final targetUserId = (userId != null && userId.isNotEmpty) ? userId : apiService.currentUserId;
-    if (colaService.elementos.isEmpty && targetUserId != null && targetUserId.isNotEmpty) {
+    if (targetUserId == null || targetUserId.isEmpty) return;
+    if (colaService.elementos.isEmpty) {
       await colaService.cargarCola(userId: targetUserId);
     }
 
     final pendientes = colaService.elementos
-        .where((e) => e.esSincronizable)
+        .where((e) => e.userId == targetUserId && e.esSincronizable)
         .toList();
 
     if (pendientes.isEmpty) return;
@@ -81,9 +82,9 @@ class SincronizadorService extends ChangeNotifier {
       bool huboCambiosEnFicha = false;
 
       for (final elemento in pendientes) {
-        if (!conectividadService.estaConectado) break;
+        if (!conectividadService.estaConectado || apiService.currentUserId != targetUserId) break;
 
-        final elUserId = (targetUserId != null && targetUserId.isNotEmpty) ? targetUserId : elemento.userId;
+        final elUserId = targetUserId;
         await colaService.actualizarEstado(elemento.id, 'SINCRONIZANDO', userId: elUserId);
 
         try {
@@ -91,6 +92,7 @@ class SincronizadorService extends ChangeNotifier {
             await apiService.post(
               elemento.endpoint,
               body: elemento.cuerpo,
+              idempotencyKey: elemento.id,
             );
 
             if (elemento.esCita) {
@@ -125,6 +127,11 @@ class SincronizadorService extends ChangeNotifier {
         } catch (e) {
           final errorStr = e.toString().toLowerCase();
 
+          if (e is ApiException && e.statusCode >= 400 && e.statusCode < 500 && e.statusCode != 409 && e.statusCode != 429) {
+            await colaService.actualizarEstado(elemento.id, 'ERROR_PERMANENTE', error: e.message, userId: elUserId);
+            if (e.statusCode == 401) break;
+            continue;
+          }
           // 1. Conflicto o solapamiento de horario confirmado por backend
           if (errorStr.contains('ya tiene una cita') ||
               errorStr.contains('conflicto') ||

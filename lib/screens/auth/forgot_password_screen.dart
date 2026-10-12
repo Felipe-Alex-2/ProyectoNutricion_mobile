@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../config/theme.dart';
 import '../../services/auth_service.dart';
 
@@ -77,7 +78,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authService.errorMessage ?? 'Error al solicitar el token'),
+          content: Text(
+            authService.errorMessage ?? 'Error al solicitar el token',
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -109,10 +112,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Row(
             children: [
-              Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen, size: 28),
+              Icon(
+                Icons.check_circle_rounded,
+                color: AppTheme.primaryGreen,
+                size: 28,
+              ),
               SizedBox(width: 8),
               Text('Contraseña Restablecida'),
             ],
@@ -134,7 +143,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authService.errorMessage ?? 'El token no es válido o ha expirado (10 min).'),
+          content: Text(
+            authService.errorMessage ??
+                'El token no es válido o ha expirado (10 min).',
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -145,14 +157,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Recuperar Contraseña'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Recuperar acceso'), elevation: 0),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 24.0,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 460),
               child: Column(
@@ -168,7 +180,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
-                        Icons.lock_reset_rounded,
+                        Icons.mark_email_read_outlined,
                         color: AppTheme.primaryGreen,
                         size: 34,
                       ),
@@ -178,11 +190,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
                   Text(
                     _currentStep == 0
-                        ? '¿Olvidaste tu contraseña?'
-                        : 'Ingresa tu Token de 10 min',
+                        ? 'Recupera tu acceso'
+                        : 'Crea tu nueva contraseña',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.5,
                     ),
@@ -205,13 +217,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEF3C7).withValues(alpha: 0.6),
-                      border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.5)),
+                      color: Theme.of(context).colorScheme.primary
+                          .withValues(alpha: .08),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.timer_outlined, color: Color(0xFFB45309), size: 22),
+                        Icon(
+                          Icons.timer_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 22,
+                        ),
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -219,7 +238,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF92400E),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -228,7 +249,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  if (_currentStep == 0) _buildRequestTokenForm() else _buildResetPasswordForm(),
+                  if (_currentStep == 0)
+                    _buildRequestTokenForm()
+                  else
+                    _buildResetPasswordForm(),
                 ],
               ),
             ),
@@ -270,12 +294,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ? const SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('Enviar Token (10 min)'),
+                      Text('Enviar código'),
                       SizedBox(width: 8),
                       Icon(Icons.send_rounded, size: 18),
                     ],
@@ -327,7 +354,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               prefixIcon: const Icon(Icons.lock_outline),
               suffixIcon: IconButton(
                 icon: Icon(
-                  _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                  _obscurePassword
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
                 ),
                 onPressed: () {
                   setState(() {
@@ -386,12 +415,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ? const SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('Actualizar Contraseña'),
+                      Text('Guardar contraseña'),
                       SizedBox(width: 8),
                       Icon(Icons.check_rounded, size: 18),
                     ],

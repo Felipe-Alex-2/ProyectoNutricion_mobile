@@ -22,7 +22,11 @@ class StorageService {
     return await _storage.read(key: _refreshTokenKey);
   }
 
+  Future<String?> getCurrentUserId() => _storage.read(key: "current_user_id");
+  Future<void> saveCurrentUserId(String userId) => _storage.write(key: "current_user_id", value: userId);
+
   Future<void> clearTokens() async {
+    await _storage.delete(key: "current_user_id");
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
   }

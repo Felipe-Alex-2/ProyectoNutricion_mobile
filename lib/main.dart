@@ -25,13 +25,14 @@ import 'modo_offline/cache_local_service.dart';
 import 'modo_offline/cola_sincronizacion_service.dart';
 import 'modo_offline/sincronizador_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final storageService = StorageService();
   final conectividadService = ConectividadService();
   final cacheLocalService = CacheLocalService();
   final colaService = ColaSincronizacionService();
+  await cacheLocalService.eliminarCacheLegacy();
 
   final apiService = ApiService(
     storageService,
@@ -75,20 +76,6 @@ void main() {
     anamnesisService.fetchMyAnamnesis();
   };
 
-  // Sincronizar identificador de usuario con almacenamiento local
-  authService.addListener(() {
-    final userId = authService.currentUser?.id.toString();
-    apiService.currentUserId = userId;
-    appointmentService.currentUserId = userId;
-    anamnesisService.currentUserId = userId;
-    if (userId != null) {
-      colaService.cargarCola(userId: userId).then((_) {
-        appointmentService.fetchAppointments();
-        anamnesisService.fetchMyAnamnesis();
-      });
-    }
-  });
-
   final themeService = ThemeService();
   final patientService = PatientService(apiService);
   final activityLogService = ActivityLogService(apiService);
@@ -98,6 +85,30 @@ void main() {
   final carlitosChatService = CarlitosChatService(apiService);
   final foodVisionService = FoodVisionService(apiService);
   final aiPlanMobileService = AIPlanMobileService(apiService);
+
+  // Sincronizar identificador de usuario con almacenamiento local
+  String? loadedUserId;
+  authService.addListener(() {
+    final userId = authService.currentUser?.id.toString();
+    apiService.currentUserId = userId;
+    appointmentService.currentUserId = userId;
+    anamnesisService.currentUserId = userId;
+    if (loadedUserId == userId) return;
+    loadedUserId = userId;
+    patientService.reset();
+    recipeService.reset();
+    appointmentService.reset();
+    anamnesisService.reset();
+    notificationService.reset();
+    subscriptionService.reset();
+    if (userId != null) {
+      colaService.cargarCola(userId: userId).then((_) {
+        if (apiService.currentUserId != userId) return;
+        appointmentService.fetchAppointments();
+        anamnesisService.fetchMyAnamnesis();
+      });
+    }
+  });
 
   runApp(
     MultiProvider(

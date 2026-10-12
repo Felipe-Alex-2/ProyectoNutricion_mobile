@@ -1,5 +1,12 @@
+import 'package:url_launcher/url_launcher.dart';
+
+import '../subscriptions/subscription_receipts_section.dart';
+import '../../widgets/nutrition_ui.dart';
+import 'widgets/nutrition_recipe_card.dart';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../config/theme.dart';
 import '../../services/activity_log_service.dart';
 import '../../services/auth_service.dart';
@@ -7,7 +14,6 @@ import '../../services/patient_service.dart';
 import '../../services/theme_service.dart';
 import '../../services/recipe_service.dart';
 import '../../models/recipe_model.dart';
-import '../../models/notification_model.dart';
 import '../../services/appointment_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/subscription_service.dart';
@@ -31,20 +37,25 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isClaiming = false;
   String? _claimError;
   String _selectedPlanCategory = 'Todas';
+  bool _showPastAppointments = false;
+  NotificationService? _notificationService;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _notificationService = context.read<NotificationService>();
       context.read<PatientService>().fetchMyNutritionist();
-      context.read<RecipeService>().fetchMyPlanRecipes();
       context.read<NotificationService>().fetchNotifications();
       context.read<NotificationService>().fetchUnreadCount();
       context.read<NotificationService>().startPolling();
       context.read<AppointmentService>().fetchAppointments();
-      context.read<AppointmentService>().fetchNutritionists();
+      context.read<RecipeService>().fetchMyPlanRecipes();
       final currentUserId = context.read<AuthService>().currentUser?.id;
-      context.read<SubscriptionService>().fetchCurrentSubscription(userId: currentUserId);
+      context.read<SubscriptionService>().fetchCurrentSubscription(
+        userId: currentUserId,
+      );
       context.read<ActivityLogService>().recordLog(
         action: 'INICIO_SESION',
         description: 'Inicio de sesión en aplicación móvil',
@@ -54,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    context.read<NotificationService>().stopPolling();
+    _notificationService?.stopPolling();
     _codeController.dispose();
     super.dispose();
   }
@@ -89,7 +100,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         } else {
-          _claimError = patientService.errorMessage ?? 'Código inválido o ya utilizado';
+          _claimError =
+              patientService.errorMessage ?? 'Código inválido o ya utilizado';
         }
       });
     }
@@ -103,13 +115,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final notifService = context.watch<NotificationService>();
     final unreadCount = notifService.unreadCount;
     final isDark = themeService.isDarkMode;
-    final subService = context.watch<SubscriptionService>();
-    final isPremium = subService.isPremium;
 
-    final primaryGreen = isDark ? AppTheme.primaryGreenDark : AppTheme.primaryGreen;
+    final primaryGreen = isDark
+        ? AppTheme.primaryGreenDark
+        : AppTheme.primaryGreen;
     final cardBg = isDark ? AppTheme.darkCard : AppTheme.lightCard;
-    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+    final textPrimary = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final textSecondary = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
 
     // Si llegó una nueva alerta en vivo, mostrar notificación emergente flotante
     final alert = notifService.latestAlert;
@@ -121,7 +137,11 @@ class _HomeScreenState extends State<HomeScreen> {
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.notifications_active, color: Colors.white, size: 22),
+                const Icon(
+                  Icons.notifications_active,
+                  color: Colors.white,
+                  size: 22,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -130,13 +150,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         alert.title,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Colors.white,
+                        ),
                       ),
                       Text(
                         alert.message,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: Colors.white),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),
@@ -174,18 +201,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            if (isPremium)
-              Positioned(
-                right: 0,
-                top: MediaQuery.of(context).size.height * 0.42,
-                child: _buildFloatingCarlitosButton(context, isDark),
-              ),
           ],
         ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkSidebar : AppTheme.lightSidebar,
+          color: cardBg,
           border: Border(
             top: BorderSide(
               color: isDark ? Colors.white10 : const Color(0x0A000000),
@@ -194,11 +215,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: NavigationBarTheme(
           data: NavigationBarThemeData(
-            labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+            labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((
+              states,
+            ) {
               final isSelected = states.contains(WidgetState.selected);
               return TextStyle(
-                fontSize: 10.0,
-                letterSpacing: -0.5,
+                fontSize: 11.0,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                 color: isSelected ? primaryGreen : textSecondary,
               );
@@ -206,40 +228,39 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: NavigationBar(
             selectedIndex: _currentNavIndex,
-            onDestinationSelected: (idx) {
-              setState(() {
-                _currentNavIndex = idx;
-              });
-              if (idx == 2) {
-                final currentUserId = context.read<AuthService>().currentUser?.id;
-                context.read<SubscriptionService>().fetchCurrentSubscription(userId: currentUserId);
-                context.read<SubscriptionService>().fetchPlans();
-              }
-              if (idx == 3) {
-                context.read<RecipeService>().fetchMyPlanRecipes();
-              }
-            },
+            onDestinationSelected: _selectTab,
             backgroundColor: Colors.transparent,
-            indicatorColor: isDark ? AppTheme.darkPillActive : AppTheme.lightPillActive,
+            indicatorColor: isDark
+                ? AppTheme.darkPillActive
+                : AppTheme.lightPillActive,
             destinations: [
               NavigationDestination(
                 icon: Icon(Icons.home_outlined, color: textSecondary),
                 selectedIcon: Icon(Icons.home_rounded, color: primaryGreen),
-                label: 'Home',
+                label: 'Inicio',
               ),
               NavigationDestination(
-                icon: Icon(Icons.medical_services_outlined, color: textSecondary),
-                selectedIcon: Icon(Icons.medical_services_rounded, color: primaryGreen),
+                icon: Icon(Icons.eco_outlined, color: textSecondary),
+                selectedIcon: Icon(Icons.eco_rounded, color: primaryGreen),
                 label: 'Nutri',
               ),
               NavigationDestination(
-                icon: Icon(Icons.workspace_premium_outlined, color: textSecondary),
-                selectedIcon: Icon(Icons.workspace_premium_rounded, color: primaryGreen),
-                label: 'Suscripciones',
+                icon: Icon(
+                  Icons.workspace_premium_outlined,
+                  color: textSecondary,
+                ),
+                selectedIcon: Icon(
+                  Icons.workspace_premium_rounded,
+                  color: primaryGreen,
+                ),
+                label: 'Premium',
               ),
               NavigationDestination(
-                icon: Icon(Icons.calendar_today_outlined, color: textSecondary),
-                selectedIcon: Icon(Icons.calendar_month_rounded, color: primaryGreen),
+                icon: Icon(Icons.menu_book_outlined, color: textSecondary),
+                selectedIcon: Icon(
+                  Icons.menu_book_rounded,
+                  color: primaryGreen,
+                ),
                 label: 'Plan',
               ),
               NavigationDestination(
@@ -254,90 +275,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFloatingCarlitosButton(BuildContext context, bool isDark) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const CarlitosChatScreen()),
-        );
-      },
-      child: Material(
-        elevation: 8,
-        shadowColor: const Color(0xFFA855F7).withValues(alpha: 0.4),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          bottomLeft: Radius.circular(20),
-        ),
-        color: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF9333EA), Color(0xFFA855F7)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20),
-              bottomLeft: Radius.circular(20),
-            ),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.35),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFA855F7).withValues(alpha: 0.35),
-                blurRadius: 10,
-                offset: const Offset(-2, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: Image.asset(
-                  'assets/images/peter_silhouette_purple.png',
-                  fit: BoxFit.contain,
-                ),
-              ),
-              const SizedBox(width: 7),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Carlitos IA',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                  Text(
-                    'Asistente',
-                    style: TextStyle(
-                      color: Color(0xFFF3E8FF),
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  void _selectTab(int index) {
+    setState(() => _currentNavIndex = index);
+    if (index == 1) {
+      context.read<PatientService>().fetchMyNutritionist();
+      context.read<AppointmentService>().fetchAppointments();
+    }
+    if (index == 3) context.read<RecipeService>().fetchMyPlanRecipes();
+  }
+
+  Future<void> _openNotifications() async {
+    final destination = await Navigator.of(
+      context,
+    ).push<int>(MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+    if (mounted && destination != null) _selectTab(destination);
   }
 
   Widget _buildSelectedTab({
@@ -413,581 +364,306 @@ class _HomeScreenState extends State<HomeScreen> {
     required Color textSecondary,
   }) {
     final user = authService.currentUser;
-    final nutri = patientService.linkedNutritionist;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Header: Avatar, App Title, Theme Toggle
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: primaryGreen.withValues(alpha: 0.18),
-                child: Text(
-                  (user != null && user.fullName.isNotEmpty)
-                      ? user.fullName[0].toUpperCase()
-                      : 'U',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: primaryGreen,
+    final subscription = context.watch<SubscriptionService>();
+    final appointments = context.watch<AppointmentService>();
+    final recipes = context.watch<RecipeService>();
+    final upcoming =
+        appointments.appointments
+            .where(
+              (a) =>
+                  a.status != 'CANCELLED' &&
+                  !a.isConflictError &&
+                  a.scheduledAt.isAfter(DateTime.now()),
+            )
+            .toList()
+          ..sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    final next = upcoming.isEmpty ? null : upcoming.first;
+    final recipe = recipes.myPlanRecipes.isEmpty
+        ? null
+        : recipes.myPlanRecipes.first;
+    final name =
+        user?.fullName.trim().split(RegExp(r'\s+')).first ?? 'bienvenido';
+    return RefreshIndicator(
+      onRefresh: () async {
+        await Future.wait([
+          patientService.fetchMyNutritionist(),
+          appointments.fetchAppointments(),
+          recipes.fetchMyPlanRecipes(),
+          context.read<NotificationService>().fetchNotifications(),
+        ]);
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(child: NutritionBrand()),
+                Badge(
+                  isLabelVisible: unreadCount > 0,
+                  label: Text(unreadCount > 99 ? '99+' : '$unreadCount'),
+                  backgroundColor: AppTheme.accentOrange,
+                  child: IconButton(
+                    tooltip: 'Notificaciones',
+                    onPressed: _openNotifications,
+                    icon: const Icon(Icons.notifications_none_rounded),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            NutritionHeading(
+              'Hola, $name',
+              subtitle: 'Un paso a la vez hacia tu bienestar.',
+            ),
+            const SizedBox(height: 20),
+            NutritionCard(
+              color: isDark
+                  ? AppTheme.darkCardAccent
+                  : AppTheme.primaryGreenLight,
+              padding: const EdgeInsets.all(16),
+              onTap: () => _selectTab(2),
+              child: Row(
+                children: [
+                  Icon(
+                    subscription.isPremium
+                        ? Icons.workspace_premium_outlined
+                        : Icons.eco_outlined,
+                    color: primaryGreen,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      subscription.isPremium
+                          ? 'Premium activo'
+                          : subscription.hasResolvedSubscription
+                          ? 'Tu plan gratuito'
+                          : 'Comprobando tu plan…',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
+            ),
+            const SizedBox(height: 20),
+            NutritionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_today_outlined, color: primaryGreen),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Tu próxima cita',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  if (next != null) ...[
+                    Text(
+                      '${_shortDate(next.scheduledAt)} · ${_time(next.scheduledAt)}',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      next.nutritionistName ?? 'Tu nutricionista',
+                      style: TextStyle(color: textSecondary),
+                    ),
+                    const SizedBox(height: 12),
+                    NutritionStatus(
+                      next.isOfflinePending
+                          ? 'Pendiente de sincronizar'
+                          : next.status == 'CONFIRMED'
+                          ? 'Confirmada'
+                          : 'Pendiente de confirmación',
+                      icon: Icons.schedule_outlined,
+                    ),
+                  ] else
+                    Text(
+                      appointments.isLoading ? 'Cargando tus citas…' : 'Aún no tienes una próxima cita. Encuentra un espacio para cuidar de ti.',
+                      style: TextStyle(color: textSecondary, height: 1.5),
+                    ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _selectTab(1),
+                      child: Text(
+                        next == null ? 'Ir a mi nutricionista' : 'Ver cita',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (recipe != null)
+              NutritionCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'NutriSalud SaaS',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: textSecondary,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.4,
-                      ),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.restaurant_menu_outlined,
+                          color: primaryGreen,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Tu plan nutricional',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 16),
+                    if (recipe.imageUrl?.isNotEmpty == true) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.network(
+                          recipe.imageUrl!,
+                          height: 120,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          cacheWidth: 1000,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Text(
-                      'Menú Principal',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: textPrimary,
+                      recipe.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${recipe.calories} kcal · ${recipe.prepTimeMinutes + recipe.cookTimeMinutes} min',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => _selectTab(3),
+                        child: const Text('Ver mi plan'),
                       ),
                     ),
                   ],
                 ),
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: cardBg,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isDark ? Colors.white10 : const Color(0x0F000000),
-                  ),
+              )
+            else
+              NutritionEmptyState(
+                icon: Icons.restaurant_menu_outlined,
+                title: 'Tu plan nutricional',
+                message: recipes.isLoading ? 'Estamos buscando tu plan…' : 'Las recetas que te asigne tu nutricionista aparecerán aquí.',
+                action: OutlinedButton(
+                  onPressed: () => _selectTab(3),
+                  child: const Text('Ver mi plan'),
                 ),
-                child: IconButton(
-                  icon: unreadCount > 0
-                      ? Badge.count(
-                          count: unreadCount,
-                          backgroundColor: const Color(0xFFDC2626),
-                          textColor: Colors.white,
-                          child: Icon(
-                            Icons.notifications_outlined,
-                            color: isDark ? const Color(0xFFFBBF24) : primaryGreen,
-                            size: 22,
-                          ),
-                        )
-                      : Icon(
-                          Icons.notifications_outlined,
-                          color: isDark ? Colors.white70 : const Color(0xFF334155),
-                          size: 22,
-                        ),
-                  tooltip: 'Notificaciones',
-                  onPressed: () {
-                    Navigator.of(context).push(
+              ),
+            const SizedBox(height: 20),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final actions = [
+                  _quickAction(
+                    Icons.favorite_border_rounded,
+                    'Ficha de salud',
+                    'Tu información',
+                    () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const NotificationsScreen(),
+                        builder: (_) => const AnamnesisScreen(),
                       ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Welcome Banner Card (Matched exactly to Web screenshot)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(22.0),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark ? Colors.white12 : const Color(0x0A000000),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // "Sesión Activa" Pill
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? primaryGreen.withValues(alpha: 0.25)
-                        : AppTheme.primaryGreenLight,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.person_outline_rounded,
-                        size: 14,
-                        color: isDark ? const Color(0xFF5DB386) : AppTheme.primaryGreen,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Sesión Activa',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? const Color(0xFF5DB386) : AppTheme.primaryGreen,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // Greeting Title
-                Text(
-                  '¡Bienvenido/a, ${user?.fullName ?? 'prueba'}!',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: textPrimary,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Subtitle
-                RichText(
-                  text: TextSpan(
-                    text: 'Has ingresado al sistema como ',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: textSecondary,
-                      height: 1.4,
                     ),
-                    children: [
-                      TextSpan(
-                        text: user?.roleId == 'ADMIN_SAAS'
-                            ? 'Administrador SaaS'
-                            : (user?.roleId == 'ADMIN_CLINICA'
-                                ? 'Administrador Clínica'
-                                : (user?.roleId == 'NUTRICIONISTA'
-                                    ? 'Nutricionista'
-                                    : 'Cliente')),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: textPrimary,
-                        ),
-                      ),
-                      const TextSpan(
-                        text: '. Aquí puedes consultar la información y estado actual de tu cuenta.',
-                      ),
-                    ],
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Ficha de Salud / Anamnesis Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isDark
-                    ? [const Color(0xFF1B382B), const Color(0xFF14241D)]
-                    : [const Color(0xFFE8F5E9), const Color(0xFFC8E6C9)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: primaryGreen.withValues(alpha: 0.3),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: primaryGreen,
-                        shape: BoxShape.circle,
+                  _quickAction(
+                    Icons.eco_outlined,
+                    'Carlitos IA',
+                    'Resuelve tus dudas',
+                    () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const CarlitosChatScreen(),
                       ),
-                      child: const Icon(Icons.assignment_turned_in_rounded, color: Colors.white, size: 22),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
+                  ),
+                ];
+                return constraints.maxWidth < 340 ||
+                        MediaQuery.textScalerOf(context).scale(14) > 18
+                    ? Column(
+                        children: [
+                          actions[0],
+                          const SizedBox(height: 12),
+                          actions[1],
+                        ],
+                      )
+                    : Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Mi Ficha de Salud (Anamnesis)',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: textPrimary,
-                            ),
-                          ),
-                          Text(
-                            'Completa tus antecedentes y hábitos para tu especialista',
-                            style: TextStyle(fontSize: 12, color: textSecondary),
-                          ),
+                          Expanded(child: actions[0]),
+                          const SizedBox(width: 12),
+                          Expanded(child: actions[1]),
                         ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryGreen,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const AnamnesisScreen()),
                       );
-                    },
-                    icon: const Icon(Icons.edit_note_rounded, color: Colors.white),
-                    label: const Text(
-                      'Llenar / Actualizar Anamnesis',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
+              },
             ),
-          ),
-          const SizedBox(height: 20),
-
-          // Card de Agendar Cita (Generar Cita)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isDark
-                    ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-                    : [const Color(0xFFEFF6FF), const Color(0xFFDBEAFE)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF2563EB),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 22),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Agendar Cita con Nutricionista',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: textPrimary,
-                            ),
-                          ),
-                          Text(
-                            'Programa tu consulta presencial o virtual con tu especialista',
-                            style: TextStyle(fontSize: 12, color: textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    onPressed: () => _showScheduleAppointmentBottomSheet(context),
-                    icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white),
-                    label: const Text(
-                      'Generar Cita',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildAppointmentsListSection(
-            isDark: isDark,
-            cardBg: cardBg,
-            textPrimary: textPrimary,
-            textSecondary: textSecondary,
-            primaryGreen: primaryGreen,
-          ),
-          const SizedBox(height: 20),
-
-          // Account Details Card ("Detalles de la Cuenta")
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(22.0),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark ? Colors.white12 : const Color(0x0A000000),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header of Card
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Detalles de la Cuenta',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            'Parámetros registrados de tu perfil en NutriSalud',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF10B981),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          const Text(
-                            'Cuenta Activa',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF10B981),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Divider(color: isDark ? Colors.white10 : const Color(0x0A000000)),
-                const SizedBox(height: 14),
-
-                // Details Items
-                _buildAccountInfoRow(
-                  icon: Icons.person_outline_rounded,
-                  label: 'Nombre Completo',
-                  value: user?.fullName ?? 'No especificado',
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  iconColor: primaryGreen,
-                ),
-                const SizedBox(height: 16),
-
-                _buildAccountInfoRow(
-                  icon: Icons.email_outlined,
-                  label: 'Correo Electrónico',
-                  value: user?.email ?? 'No especificado',
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  iconColor: primaryGreen,
-                ),
-                const SizedBox(height: 16),
-
-                _buildAccountInfoRow(
-                  icon: Icons.shield_outlined,
-                  label: 'Rol del Sistema',
-                  valueWidget: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: primaryGreen.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Cliente',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: primaryGreen,
-                      ),
-                    ),
-                  ),
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  iconColor: primaryGreen,
-                ),
-                const SizedBox(height: 16),
-
-                _buildAccountInfoRow(
-                  icon: Icons.business_rounded,
-                  label: 'Organización / Especialista',
-                  value: nutri?.nutritionistName != null
-                      ? '${nutri!.nutritionistName} (${nutri.tenantName ?? "NutriSalud"})'
-                      : 'NutriSalud Central',
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  iconColor: primaryGreen,
-                ),
-                const SizedBox(height: 16),
-
-                _buildAccountInfoRow(
-                  icon: Icons.phone_outlined,
-                  label: 'Teléfono de Contacto',
-                  value: '+591 73683564',
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  iconColor: primaryGreen,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildAccountInfoRow({
-    required IconData icon,
-    required String label,
-    String? value,
-    Widget? valueWidget,
-    required Color textPrimary,
-    required Color textSecondary,
-    required Color iconColor,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _quickAction(
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback action,
+  ) => NutritionCard(
+    padding: const EdgeInsets.all(14),
+    onTap: action,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: iconColor, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 2),
-              if (valueWidget != null)
-                valueWidget
-              else
-                Text(
-                  value ?? '',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: textPrimary,
-                  ),
-                ),
-            ],
-          ),
-        ),
+        NutritionIcon(icon, size: 36),
+        const SizedBox(height: 10),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
       ],
-    );
+    ),
+  );
+
+  String _shortDate(DateTime value) {
+    final date = value.toLocal();
+    const months = [
+      'ene',
+      'feb',
+      'mar',
+      'abr',
+      'may',
+      'jun',
+      'jul',
+      'ago',
+      'sep',
+      'oct',
+      'nov',
+      'dic',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  // 2. NUTRICIONISTA / VINCULAR VIEW
+  String _time(DateTime value) {
+    final date = value.toLocal();
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
   Widget _buildNutritionistView({
     required PatientService patientService,
     required bool isDark,
@@ -1008,9 +684,9 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Mi Nutricionista',
+              'Mi nutricionista',
               style: TextStyle(
-                fontSize: 22,
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
                 color: textPrimary,
               ),
@@ -1018,10 +694,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 4),
             Text(
               'Especialista a cargo de tu plan nutricional',
-              style: TextStyle(
-                fontSize: 13,
-                color: textSecondary,
-              ),
+              style: TextStyle(fontSize: 13, color: textSecondary),
             ),
             const SizedBox(height: 24),
 
@@ -1044,12 +717,26 @@ class _HomeScreenState extends State<HomeScreen> {
               )
             else
               // CLAIM PAIRING CODE CARD
-              _buildClaimCodeCard(
-                isDark: isDark,
-                cardBg: cardBg,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-                primaryGreen: primaryGreen,
+              Column(
+                children: [
+                  _buildClaimCodeCard(
+                    isDark: isDark,
+                    cardBg: cardBg,
+                    textPrimary: textPrimary,
+                    textSecondary: textSecondary,
+                    primaryGreen: primaryGreen,
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          _showScheduleAppointmentBottomSheet(context),
+                      icon: const Icon(Icons.calendar_today_outlined),
+                      label: const Text('Solicitar cita'),
+                    ),
+                  ),
+                ],
               ),
             const SizedBox(height: 20),
             _buildAppointmentsListSection(
@@ -1074,237 +761,121 @@ class _HomeScreenState extends State<HomeScreen> {
     required Color textSecondary,
     required Color primaryGreen,
   }) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(22.0),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: primaryGreen.withValues(alpha: 0.3),
-              width: 1.5,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final email = nutri.nutritionistEmail as String?;
+    final phone = nutri.whatsappNumber as String?;
+    return NutritionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              // Header with Status Badge
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: primaryGreen.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.check_circle_rounded, color: primaryGreen, size: 14),
-                        const SizedBox(width: 4),
-                        Text(
-                          'ACTIVO / VINCULADO',
-                          style: TextStyle(
-                            color: primaryGreen,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    'Solo Lectura',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: textSecondary,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              // Specialist Avatar & Name
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: primaryGreen.withValues(alpha: 0.15),
-                    child: Icon(
-                      Icons.medical_services_rounded,
-                      color: primaryGreen,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          nutri.nutritionistName,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          nutri.tenantName ?? 'Centro Nutricional Especializado',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: primaryGreen,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Divider(color: isDark ? Colors.white10 : const Color(0x0A000000)),
-              const SizedBox(height: 14),
-
-              // Details List
-              if (nutri.nutritionistEmail != null && (nutri.nutritionistEmail as String).isNotEmpty)
-                _buildReadOnlyDetailRow(
-                  icon: Icons.email_outlined,
-                  label: 'Correo de Contacto',
-                  value: nutri.nutritionistEmail,
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  iconColor: primaryGreen,
-                ),
-              const SizedBox(height: 12),
-              _buildReadOnlyDetailRow(
-                icon: Icons.phone_android_rounded,
-                label: 'WhatsApp de Vinculación',
-                value: nutri.whatsappNumber,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-                iconColor: AppTheme.accentOrange,
-              ),
-              const SizedBox(height: 12),
-              _buildReadOnlyDetailRow(
-                icon: Icons.vpn_key_outlined,
-                label: 'Código Canjeado',
-                value: nutri.pairingCode,
-                textPrimary: textPrimary,
-                textSecondary: textSecondary,
-                iconColor: primaryGreen,
-              ),
-              if (nutri.linkedAt != null) ...[
-                const SizedBox(height: 12),
-                _buildReadOnlyDetailRow(
-                  icon: Icons.event_available_rounded,
-                  label: 'Fecha de Vinculación',
-                  value: '${nutri.linkedAt!.day}/${nutri.linkedAt!.month}/${nutri.linkedAt!.year}',
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  iconColor: textSecondary,
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Read-only Notice Card
-        Container(
-          padding: const EdgeInsets.all(16.0),
-          decoration: BoxDecoration(
-            color: primaryGreen.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: primaryGreen.withValues(alpha: 0.2),
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.info_outline_rounded, color: primaryGreen, size: 20),
-              const SizedBox(width: 12),
+              const NutritionIcon(Icons.person_outline_rounded, size: 64),
+              const SizedBox(width: 16),
               Expanded(
-                child: Text(
-                  'Tu cuenta está conectada de forma segura con tu nutricionista. Los planes alimenticios y recomendaciones son actualizados directamente por el especialista.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: textPrimary,
-                    height: 1.4,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nutri.nutritionistName,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      nutri.tenantName ?? 'Nutricionista',
+                      style: TextStyle(color: textSecondary),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 16),
-        // Botón Agendar Cita con Nutricionista
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            onPressed: () => _showScheduleAppointmentBottomSheet(context),
-            icon: const Icon(Icons.calendar_month_rounded, color: Colors.white),
-            label: const Text(
-              'Agendar Cita Médica / Nutricional',
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15),
-            ),
+          const SizedBox(height: 16),
+          const NutritionStatus(
+            'Vinculada',
+            icon: Icons.check_circle_outline_rounded,
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildReadOnlyDetailRow({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color textPrimary,
-    required Color textSecondary,
-    required Color iconColor,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: iconColor),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
             children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: textSecondary,
-                  fontWeight: FontWeight.w500,
+              if (email != null && email.isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      _openContact(Uri(scheme: 'mailto', path: email)),
+                  icon: const Icon(Icons.mail_outline_rounded, size: 20),
+                  label: const Text('Correo'),
                 ),
-              ),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: textPrimary,
+              if (phone != null &&
+                  phone.replaceAll(RegExp(r'\D'), '').isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () => _openContact(
+                    Uri.https(
+                      'wa.me',
+                      '/${phone.replaceAll(RegExp(r'\D'), '')}',
+                    ),
+                  ),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                  label: const Text('WhatsApp'),
                 ),
-              ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: const EdgeInsets.only(bottom: 12),
+            title: const Text('Detalles de vinculación'),
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Código canjeado'),
+                subtitle: Text(nutri.pairingCode),
+              ),
+              if (nutri.linkedAt != null)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Fecha de vinculación'),
+                  subtitle: Text(_shortDate(nutri.linkedAt)),
+                ),
+              if (email != null && email.isNotEmpty) SelectableText(email),
+              if (phone != null && phone.isNotEmpty) SelectableText(phone),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _showScheduleAppointmentBottomSheet(context),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Solicitar cita'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // Sección de Citas Agendadas del Paciente (con soporte Offline)
+  Future<void> _openContact(Uri uri) async {
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo abrir la aplicación de contacto.'),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo abrir la aplicación de contacto.'),
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildAppointmentsListSection({
     required bool isDark,
     required Color cardBg,
@@ -1312,192 +883,137 @@ class _HomeScreenState extends State<HomeScreen> {
     required Color textSecondary,
     required Color primaryGreen,
   }) {
-    final apptService = context.watch<AppointmentService>();
-    final appointments = apptService.appointments;
-
-    if (appointments.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
+    final service = context.watch<AppointmentService>();
+    final now = DateTime.now();
+    final appointments =
+        service.appointments.where((a) {
+          final past = a.scheduledAt.isBefore(now) || a.status == 'CANCELLED';
+          return _showPastAppointments ? past : !past;
+        }).toList()..sort(
+          (a, b) => _showPastAppointments
+              ? b.scheduledAt.compareTo(a.scheduledAt)
+              : a.scheduledAt.compareTo(b.scheduledAt),
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Icon(Icons.calendar_month_rounded, size: 20, color: primaryGreen),
-                const SizedBox(width: 8),
-                Text(
-                  'Mis Citas Agendadas',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: textPrimary,
-                  ),
-                ),
-              ],
+            Expanded(
+              child: Text(
+                'Mis citas',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
             ),
             IconButton(
-              icon: Icon(Icons.refresh_rounded, size: 20, color: textSecondary),
               tooltip: 'Actualizar citas',
-              onPressed: () => context.read<AppointmentService>().fetchAppointments(),
+              onPressed: service.fetchAppointments,
+              icon: const Icon(Icons.refresh_rounded),
             ),
           ],
         ),
-        const SizedBox(height: 10),
-        ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: appointments.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final appt = appointments[index];
-            final dateStr = '${appt.scheduledAt.day.toString().padLeft(2, '0')}/${appt.scheduledAt.month.toString().padLeft(2, '0')}/${appt.scheduledAt.year}';
-            final timeStr = '${appt.scheduledAt.hour.toString().padLeft(2, '0')}:${appt.scheduledAt.minute.toString().padLeft(2, '0')}';
-
-            Color statusColor;
-            String statusText;
-            IconData statusIcon;
-
-            if (appt.isConflictError) {
-              statusColor = Colors.redAccent;
-              statusText = 'Horario Ocupado';
-              statusIcon = Icons.error_outline_rounded;
-            } else if (appt.isOfflinePending) {
-              statusColor = const Color(0xFFD97706);
-              statusText = 'Pendiente (Sin conexión)';
-              statusIcon = Icons.cloud_off_rounded;
-            } else if (appt.status == 'CONFIRMED') {
-              statusColor = const Color(0xFF059669);
-              statusText = 'Confirmada';
-              statusIcon = Icons.check_circle_rounded;
-            } else if (appt.status == 'CANCELLED') {
-              statusColor = Colors.red;
-              statusText = 'Cancelada';
-              statusIcon = Icons.cancel_rounded;
-            } else {
-              statusColor = const Color(0xFF2563EB);
-              statusText = 'Pendiente de Confirmación';
-              statusIcon = Icons.access_time_rounded;
-            }
-
-            return Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: appt.isOfflinePending
-                      ? const Color(0xFFD97706).withValues(alpha: 0.6)
-                      : (isDark ? Colors.white12 : const Color(0x0A000000)),
-                  width: appt.isOfflinePending ? 1.5 : 1.0,
-                ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          children: [
+            ChoiceChip(
+              label: const Text('Próximas'),
+              selected: !_showPastAppointments,
+              showCheckmark: false,
+              labelStyle: TextStyle(
+                color: !_showPastAppointments
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : textPrimary,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.event_rounded, size: 16, color: primaryGreen),
-                          const SizedBox(width: 6),
-                          Text(
-                            '$dateStr • $timeStr',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: statusColor.withValues(alpha: 0.4)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(statusIcon, size: 12, color: statusColor),
-                            const SizedBox(width: 4),
-                            Text(
-                              statusText,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: statusColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Nutricionista: ${appt.nutritionistName ?? "Especialista Nutricional"}',
-                    style: TextStyle(fontSize: 12, color: textSecondary),
-                  ),
-                  if (appt.reason != null && appt.reason!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'Motivo: ${appt.reason}',
-                      style: TextStyle(fontSize: 12, color: textSecondary.withValues(alpha: 0.8)),
-                    ),
-                  ],
-                  if (appt.isOfflinePending) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD97706).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFD97706)),
-                          SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'Guardada localmente. Se enviará a la clínica cuando te conectes a internet.',
-                              style: TextStyle(fontSize: 11, color: Color(0xFFD97706), fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  if (appt.isConflictError && appt.cancellationReason != null) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        appt.cancellationReason!,
-                        style: const TextStyle(fontSize: 11, color: Colors.redAccent),
-                      ),
-                    ),
-                  ],
-                ],
+              onSelected: (_) => setState(() => _showPastAppointments = false),
+            ),
+            ChoiceChip(
+              label: const Text('Anteriores'),
+              selected: _showPastAppointments,
+              showCheckmark: false,
+              labelStyle: TextStyle(
+                color: _showPastAppointments
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : textPrimary,
               ),
-            );
-          },
+              onSelected: (_) => setState(() => _showPastAppointments = true),
+            ),
+          ],
         ),
+        const SizedBox(height: 16),
+        if (service.isLoading) const LinearProgressIndicator(),
+        if (appointments.isEmpty && !service.isLoading)
+          NutritionEmptyState(
+            icon: Icons.calendar_today_outlined,
+            title: _showPastAppointments
+                ? 'Sin citas anteriores'
+                : 'Un espacio para tu bienestar',
+            message: _showPastAppointments
+                ? 'Aquí aparecerá tu historial de citas.'
+                : 'Solicita una cita con tu nutricionista para continuar tu seguimiento.',
+          ),
+        for (final appointment in appointments) ...[
+          NutritionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  appointment.reason?.isNotEmpty == true
+                      ? appointment.reason!
+                      : 'Consulta nutricional',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 10,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      '${_shortDate(appointment.scheduledAt)} · ${_time(appointment.scheduledAt)}',
+                      style: TextStyle(color: textSecondary),
+                    ),
+                    NutritionStatus(
+                      appointment.isConflictError
+                          ? 'Horario ocupado'
+                          : appointment.isOfflinePending
+                          ? 'Pendiente · sin conexión'
+                          : appointment.status == 'CONFIRMED'
+                          ? 'Confirmada'
+                          : appointment.status == 'CANCELLED'
+                          ? 'Cancelada'
+                          : 'Pendiente de confirmación',
+                      icon: Icons.event_outlined,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  appointment.nutritionistName ?? 'Tu nutricionista',
+                  style: TextStyle(color: textSecondary),
+                ),
+                if (appointment.isOfflinePending) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Guardada en tu dispositivo. Se enviará cuando vuelvas a conectarte.',
+                  ),
+                ],
+                if (appointment.cancellationReason?.isNotEmpty == true) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    appointment.cancellationReason!,
+                    style: const TextStyle(color: AppTheme.accentCoral),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
       ],
     );
   }
 
-  // Form to Enter WhatsApp Link Code
   Widget _buildClaimCodeCard({
     required bool isDark,
     required Color cardBg,
@@ -1509,7 +1025,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.all(22.0),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDark ? Colors.white12 : const Color(0x0A000000),
         ),
@@ -1526,11 +1042,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: primaryGreen.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.link_rounded,
-                  color: primaryGreen,
-                  size: 24,
-                ),
+                child: Icon(Icons.link_rounded, color: primaryGreen, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1547,10 +1059,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     Text(
                       'Ingresa el código que recibiste por WhatsApp',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: textSecondary,
-                      ),
+                      style: TextStyle(fontSize: 12, color: textSecondary),
                     ),
                   ],
                 ),
@@ -1579,12 +1088,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               prefixIcon: Icon(Icons.key_rounded, color: primaryGreen),
               filled: true,
-              fillColor: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
+              fillColor: isDark
+                  ? const Color(0xFF141C18)
+                  : const Color(0xFFF3F7F4),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
             ),
           ),
 
@@ -1641,9 +1155,7 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF121915) : const Color(0xFFF7FBF8),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: primaryGreen.withValues(alpha: 0.12),
-              ),
+              border: Border.all(color: primaryGreen.withValues(alpha: 0.12)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1670,303 +1182,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // 3. CENTRO DE NOTIFICACIONES (Conservado por compatibilidad)
   // ignore: unused_element
-  Widget _buildNotificationsView({
-    required bool isDark,
-    required Color primaryGreen,
-    required Color cardBg,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    final notifService = context.watch<NotificationService>();
-    final notifications = notifService.notifications;
 
-    return RefreshIndicator(
-      onRefresh: () => notifService.fetchNotifications(),
-      color: primaryGreen,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header: Title, Subtitle, and Mark All Read Button
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Notificaciones',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: textPrimary,
-                            ),
-                          ),
-                          if (notifService.unreadCount > 0) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                '${notifService.unreadCount}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Avisos de citas, confirmaciones y actualizaciones',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (notifService.unreadCount > 0)
-                  TextButton.icon(
-                    onPressed: () => notifService.markAllAsRead(),
-                    icon: const Icon(Icons.done_all_rounded, size: 16),
-                    label: const Text('Leer todas', style: TextStyle(fontSize: 12)),
-                    style: TextButton.styleFrom(
-                      foregroundColor: primaryGreen,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            if (notifService.isLoading && notifications.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(40.0),
-                  child: CircularProgressIndicator(color: primaryGreen),
-                ),
-              )
-            else if (notifications.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 60.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1B2620) : const Color(0xFFE8F5E9),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.notifications_none_rounded,
-                          size: 48,
-                          color: primaryGreen,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Sin notificaciones pendientes',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Cuando tu nutricionista confirme o cancele tus citas, recibirás las alertas aquí.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: notifications.length,
-                separatorBuilder: (ctx, idx) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final notif = notifications[index];
-                  return _buildNotificationCard(
-                    notif: notif,
-                    isDark: isDark,
-                    cardBg: cardBg,
-                    textPrimary: textPrimary,
-                    textSecondary: textSecondary,
-                    primaryGreen: primaryGreen,
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotificationCard({
-    required NotificationModel notif,
-    required bool isDark,
-    required Color cardBg,
-    required Color textPrimary,
-    required Color textSecondary,
-    required Color primaryGreen,
-  }) {
-    Color iconBg;
-    Color iconColor;
-    IconData iconData;
-
-    switch (notif.type) {
-      case 'CITA_CONFIRMADA':
-        iconBg = const Color(0xFF10B981).withValues(alpha: 0.15);
-        iconColor = const Color(0xFF10B981);
-        iconData = Icons.check_circle_rounded;
-        break;
-      case 'CITA_CANCELADA':
-        iconBg = Colors.redAccent.withValues(alpha: 0.15);
-        iconColor = Colors.redAccent;
-        iconData = Icons.cancel_rounded;
-        break;
-      case 'CITA_CREADA':
-        iconBg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
-        iconColor = const Color(0xFFF59E0B);
-        iconData = Icons.calendar_month_rounded;
-        break;
-      default:
-        iconBg = primaryGreen.withValues(alpha: 0.15);
-        iconColor = primaryGreen;
-        iconData = Icons.notifications_active_rounded;
-        break;
+  Future<void> _showScheduleAppointmentBottomSheet(BuildContext context) async {
+    final owner = context.read<AuthService>().currentUser?.id;
+    await context.read<AppointmentService>().fetchNutritionists();
+    if (!context.mounted ||
+        context.read<AuthService>().currentUser?.id != owner) {
+      return;
     }
-
-    final date = notif.createdAt;
-    final formattedDate =
-        '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-
-    return InkWell(
-      onTap: () {
-        if (!notif.isRead) {
-          context.read<NotificationService>().markAsRead(notif.id);
-        }
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: notif.isRead
-              ? cardBg
-              : (isDark ? const Color(0xFF1C2B22) : const Color(0xFFF0FDF4)),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: notif.isRead
-                ? (isDark ? Colors.white10 : const Color(0x0A000000))
-                : primaryGreen.withValues(alpha: 0.5),
-            width: notif.isRead ? 1 : 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconBg,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(iconData, color: iconColor, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          notif.title,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: textPrimary,
-                          ),
-                        ),
-                      ),
-                      if (!notif.isRead)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF2563EB),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    notif.message,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: textSecondary,
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    formattedDate,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: textSecondary.withValues(alpha: 0.8),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // DIÁLOGO / BOTTOMSHEET PARA GENERAR CITA
-  void _showScheduleAppointmentBottomSheet(BuildContext context) {
     final patientService = context.read<PatientService>();
     final apptService = context.read<AppointmentService>();
     final themeService = context.read<ThemeService>();
     final isDark = themeService.isDarkMode;
 
-    final primaryGreen = isDark ? AppTheme.primaryGreenDark : AppTheme.primaryGreen;
+    final primaryGreen = isDark
+        ? AppTheme.primaryGreenDark
+        : AppTheme.primaryGreen;
     final cardBg = isDark ? AppTheme.darkCard : AppTheme.lightCard;
-    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+    final textPrimary = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final textSecondary = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
 
     DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
     TimeOfDay selectedTime = const TimeOfDay(hour: 10, minute: 0);
@@ -1986,11 +1224,14 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    String? selectedNutritionistId = patientService.linkedNutritionist?.nutritionistId;
-    String? selectedNutritionistName = patientService.linkedNutritionist?.nutritionistName;
+    String? selectedNutritionistId =
+        patientService.linkedNutritionist?.nutritionistId;
+    String? selectedNutritionistName =
+        patientService.linkedNutritionist?.nutritionistName;
 
     // Si aún no hay selección válida y hay nutricionistas disponibles
-    if (selectedNutritionistId == null || !nutriMap.containsKey(selectedNutritionistId)) {
+    if (selectedNutritionistId == null ||
+        !nutriMap.containsKey(selectedNutritionistId)) {
       if (nutriMap.isNotEmpty) {
         selectedNutritionistId = nutriMap.keys.first;
         selectedNutritionistName = nutriMap[selectedNutritionistId];
@@ -2014,7 +1255,9 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, setModalState) {
             final navBarPadding = MediaQuery.of(context).viewPadding.bottom;
             final keyboardPadding = MediaQuery.of(context).viewInsets.bottom;
-            final bottomPadding = keyboardPadding + (navBarPadding > 0 ? navBarPadding + 16 : 28.0);
+            final bottomPadding =
+                keyboardPadding +
+                (navBarPadding > 0 ? navBarPadding + 16 : 28.0);
 
             return SafeArea(
               top: false,
@@ -2028,329 +1271,453 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: SingleChildScrollView(
                   child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF2563EB).withValues(alpha: 0.15),
-                                shape: BoxShape.circle,
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2563EB)
+                                      .withValues(alpha: 0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.calendar_month_rounded,
+                                  color: Color(0xFF2563EB),
+                                  size: 20,
+                                ),
                               ),
-                              child: const Icon(Icons.calendar_month_rounded, color: Color(0xFF2563EB), size: 20),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Agendar Cita',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: textPrimary,
+                              const SizedBox(width: 10),
+                              Text(
+                                'Agendar Cita',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: textPrimary,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.close, color: textSecondary),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                            ],
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.close, color: textSecondary),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
 
-                    // Selector de Nutricionista
-                    Text(
-                      'Nutricionista *',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary),
-                    ),
-                    const SizedBox(height: 6),
-                    if (nutriMap.isNotEmpty)
-                      DropdownButtonFormField<String>(
-                        initialValue: nutriMap.containsKey(selectedNutritionistId)
-                            ? selectedNutritionistId
-                            : (nutriMap.isNotEmpty ? nutriMap.keys.first : null),
-                        dropdownColor: cardBg,
+                      // Selector de Nutricionista
+                      Text(
+                        'Nutricionista *',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (nutriMap.isNotEmpty)
+                        DropdownButtonFormField<String>(
+                          initialValue:
+                              nutriMap.containsKey(selectedNutritionistId)
+                              ? selectedNutritionistId
+                              : (nutriMap.isNotEmpty
+                                    ? nutriMap.keys.first
+                                    : null),
+                          dropdownColor: cardBg,
+                          decoration: InputDecoration(
+                            prefixIcon: Icon(
+                              Icons.person_rounded,
+                              color: primaryGreen,
+                            ),
+                            filled: true,
+                            fillColor: isDark
+                                ? const Color(0xFF141C18)
+                                : const Color(0xFFF3F7F4),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                          ),
+                          items: nutriMap.entries.map((entry) {
+                            return DropdownMenuItem<String>(
+                              value: entry.key,
+                              child: Text(
+                                entry.value,
+                                style: TextStyle(
+                                  color: textPrimary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            setModalState(() {
+                              selectedNutritionistId = val;
+                              if (val != null && nutriMap.containsKey(val)) {
+                                selectedNutritionistName = nutriMap[val];
+                              }
+                            });
+                          },
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF141C18)
+                                : const Color(0xFFF3F7F4),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.person_rounded,
+                                color: primaryGreen,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                selectedNutritionistName ??
+                                    'Especialista de la clínica',
+                                style: TextStyle(
+                                  color: textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+
+                      // Selector de Fecha y Hora
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Fecha *',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                InkWell(
+                                  onTap: () async {
+                                    final picked = await showDatePicker(
+                                      context: context,
+                                      initialDate: selectedDate,
+                                      firstDate: DateTime.now(),
+                                      lastDate: DateTime.now().add(
+                                        const Duration(days: 90),
+                                      ),
+                                    );
+                                    if (picked != null) {
+                                      setModalState(() {
+                                        selectedDate = picked;
+                                      });
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? const Color(0xFF141C18)
+                                          : const Color(0xFFF3F7F4),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.calendar_today_rounded,
+                                          size: 16,
+                                          color: primaryGreen,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                                          style: TextStyle(
+                                            color: textPrimary,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Hora *',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                InkWell(
+                                  onTap: () async {
+                                    final picked = await showTimePicker(
+                                      context: context,
+                                      initialTime: selectedTime,
+                                    );
+                                    if (picked != null) {
+                                      setModalState(() {
+                                        selectedTime = picked;
+                                      });
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? const Color(0xFF141C18)
+                                          : const Color(0xFFF3F7F4),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.access_time_rounded,
+                                          size: 16,
+                                          color: primaryGreen,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          selectedTime.format(context),
+                                          style: TextStyle(
+                                            color: textPrimary,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Motivo de consulta (Opcional)
+                      Text(
+                        'Motivo de la consulta (Opcional)',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: reasonController,
+                        maxLines: 2,
+                        style: TextStyle(color: textPrimary, fontSize: 14),
                         decoration: InputDecoration(
-                          prefixIcon: Icon(Icons.person_rounded, color: primaryGreen),
+                          hintText: 'Ej: Control mensual, revisión de plan alimenticio...',
+                          hintStyle: TextStyle(
+                            color: textSecondary.withValues(alpha: 0.6),
+                            fontSize: 13,
+                          ),
                           filled: true,
-                          fillColor: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
+                          fillColor: isDark
+                              ? const Color(0xFF141C18)
+                              : const Color(0xFFF3F7F4),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: BorderSide.none,
                           ),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                         ),
-                        items: nutriMap.entries.map((entry) {
-                          return DropdownMenuItem<String>(
-                            value: entry.key,
-                            child: Text(entry.value, style: TextStyle(color: textPrimary, fontSize: 14)),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          setModalState(() {
-                            selectedNutritionistId = val;
-                            if (val != null && nutriMap.containsKey(val)) {
-                              selectedNutritionistName = nutriMap[val];
-                            }
-                          });
-                        },
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.person_rounded, color: primaryGreen, size: 20),
-                            const SizedBox(width: 10),
-                            Text(
-                              selectedNutritionistName ?? 'Especialista de la clínica',
-                              style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Botón de Enviar
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-
-                    // Selector de Fecha y Hora
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Fecha *',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary),
-                              ),
-                              const SizedBox(height: 6),
-                              InkWell(
-                                onTap: () async {
-                                  final picked = await showDatePicker(
-                                    context: context,
-                                    initialDate: selectedDate,
-                                    firstDate: DateTime.now(),
-                                    lastDate: DateTime.now().add(const Duration(days: 90)),
-                                  );
-                                  if (picked != null) {
-                                    setModalState(() {
-                                      selectedDate = picked;
-                                    });
-                                  }
-                                },
-                                borderRadius: BorderRadius.circular(14),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.calendar_today_rounded, size: 16, color: primaryGreen),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
-                                        style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Hora *',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary),
-                              ),
-                              const SizedBox(height: 6),
-                              InkWell(
-                                onTap: () async {
-                                  final picked = await showTimePicker(
-                                    context: context,
-                                    initialTime: selectedTime,
-                                  );
-                                  if (picked != null) {
-                                    setModalState(() {
-                                      selectedTime = picked;
-                                    });
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  if (selectedNutritionistId == null &&
+                                      apptService.nutritionists.isNotEmpty) {
+                                    selectedNutritionistId =
+                                        apptService.nutritionists.first.id;
                                   }
-                                },
-                                borderRadius: BorderRadius.circular(14),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.access_time_rounded, size: 16, color: primaryGreen),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        selectedTime.format(context),
-                                        style: TextStyle(color: textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
 
-                    // Motivo de consulta (Opcional)
-                    Text(
-                      'Motivo de la consulta (Opcional)',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textSecondary),
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: reasonController,
-                      maxLines: 2,
-                      style: TextStyle(color: textPrimary, fontSize: 14),
-                      decoration: InputDecoration(
-                        hintText: 'Ej: Control mensual, revisión de plan alimenticio...',
-                        hintStyle: TextStyle(color: textSecondary.withValues(alpha: 0.6), fontSize: 13),
-                        filled: true,
-                        fillColor: isDark ? const Color(0xFF141C18) : const Color(0xFFF3F7F4),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Botón de Enviar
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        onPressed: isSubmitting
-                            ? null
-                            : () async {
-                                if (selectedNutritionistId == null && apptService.nutritionists.isNotEmpty) {
-                                  selectedNutritionistId = apptService.nutritionists.first.id;
-                                }
-
-                                if (selectedNutritionistId == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Por favor selecciona un nutricionista disponible'),
-                                      backgroundColor: Colors.redAccent,
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                setModalState(() {
-                                  isSubmitting = true;
-                                });
-
-                                final scheduledDateTime = DateTime(
-                                  selectedDate.year,
-                                  selectedDate.month,
-                                  selectedDate.day,
-                                  selectedTime.hour,
-                                  selectedTime.minute,
-                                );
-
-                                final conectividad = context.read<ConectividadService>();
-                                final bool estaOffline = !conectividad.estaConectado;
-
-                                final success = await apptService.bookAppointment(
-                                  nutritionistId: selectedNutritionistId!,
-                                  scheduledAt: scheduledDateTime,
-                                  reason: reasonController.text.trim(),
-                                  nutritionistName: selectedNutritionistName,
-                                );
-
-                                if (context.mounted) {
-                                  if (!success) {
-                                    setModalState(() {
-                                      isSubmitting = false;
-                                    });
+                                  if (selectedNutritionistId == null) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(apptService.errorMessage ?? 'Error al agendar la cita'),
+                                      const SnackBar(
+                                        content: Text(
+                                          'Por favor selecciona un nutricionista disponible',
+                                        ),
                                         backgroundColor: Colors.redAccent,
-                                        duration: const Duration(seconds: 4),
                                       ),
                                     );
                                     return;
                                   }
 
-                                  Navigator.pop(context);
-                                  final esPendienteOffline = estaOffline ||
-                                      (apptService.appointments.isNotEmpty &&
-                                          apptService.appointments.first.isOfflinePending);
+                                  setModalState(() {
+                                    isSubmitting = true;
+                                  });
 
-                                  if (esPendienteOffline) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Cita guardada como pendiente (sin conexion). Se enviara automaticamente a tu especialista cuando te conectes a internet.'),
-                                        backgroundColor: Color(0xFFD97706),
-                                        duration: Duration(seconds: 4),
-                                      ),
-                                    );
-                                  } else {
-                                    context.read<NotificationService>().fetchNotifications();
-                                    context.read<NotificationService>().fetchUnreadCount();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Cita solicitada con exito. Queda pendiente de confirmacion por tu especialista.'),
-                                        backgroundColor: Color(0xFF059669),
-                                      ),
-                                    );
+                                  final scheduledDateTime = DateTime(
+                                    selectedDate.year,
+                                    selectedDate.month,
+                                    selectedDate.day,
+                                    selectedTime.hour,
+                                    selectedTime.minute,
+                                  );
+
+                                  final conectividad = context
+                                      .read<ConectividadService>();
+                                  final bool estaOffline =
+                                      !conectividad.estaConectado;
+
+                                  final success = await apptService
+                                      .bookAppointment(
+                                        nutritionistId: selectedNutritionistId!,
+                                        scheduledAt: scheduledDateTime,
+                                        reason: reasonController.text.trim(),
+                                        nutritionistName:
+                                            selectedNutritionistName,
+                                      );
+
+                                  if (context.mounted) {
+                                    if (!success) {
+                                      setModalState(() {
+                                        isSubmitting = false;
+                                      });
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            apptService.errorMessage ??
+                                                'Error al agendar la cita',
+                                          ),
+                                          backgroundColor: Colors.redAccent,
+                                          duration: const Duration(seconds: 4),
+                                        ),
+                                      );
+                                      return;
+                                    }
+
+                                    Navigator.pop(context);
+                                    final esPendienteOffline =
+                                        estaOffline ||
+                                        (apptService.appointments.isNotEmpty &&
+                                            apptService
+                                                .appointments
+                                                .first
+                                                .isOfflinePending);
+
+                                    if (esPendienteOffline) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Cita guardada como pendiente (sin conexion). Se enviara automaticamente a tu especialista cuando te conectes a internet.',
+                                          ),
+                                          backgroundColor: Color(0xFFD97706),
+                                          duration: Duration(seconds: 4),
+                                        ),
+                                      );
+                                    } else {
+                                      context
+                                          .read<NotificationService>()
+                                          .fetchNotifications();
+                                      context
+                                          .read<NotificationService>()
+                                          .fetchUnreadCount();
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Cita solicitada con exito. Queda pendiente de confirmacion por tu especialista.',
+                                          ),
+                                          backgroundColor: Color(0xFF059669),
+                                        ),
+                                      );
+                                    }
                                   }
-                                }
-                              },
-                        child: isSubmitting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Text(
-                                'Confirmar y Agendar Cita',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
-                              ),
+                                },
+                          child: isSubmitting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Confirmar y Agendar Cita',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
-      );
-    },
-  );
-}
-
+            );
+          },
+        );
+      },
+    );
+  }
 
   // 4. PLAN VIEW (Recetas asignadas por el Nutricionista con macros y fotos)
   Widget _buildPlanView({
@@ -2368,7 +1735,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final categories = ['Todas', 'Desayuno', 'Almuerzo', 'Cena', 'Snack'];
     final filteredRecipes = _selectedPlanCategory == 'Todas'
         ? allRecipes
-        : allRecipes.where((r) => r.category.toLowerCase() == _selectedPlanCategory.toLowerCase()).toList();
+        : allRecipes
+              .where(
+                (r) =>
+                    r.category.toLowerCase() ==
+                    _selectedPlanCategory.toLowerCase(),
+              )
+              .toList();
 
     return RefreshIndicator(
       color: primaryGreen,
@@ -2382,36 +1755,35 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Mi Plan Alimenticio',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: textPrimary,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mi plan nutricional',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: textPrimary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Recetas saludables y macronutrientes asignados',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: textSecondary,
+                      const SizedBox(height: 4),
+                      Text(
+                        'Preparado para ti por tu nutricionista',
+                        style: TextStyle(fontSize: 13, color: textSecondary),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 IconButton(
                   icon: Icon(Icons.refresh_rounded, color: primaryGreen),
                   tooltip: 'Actualizar recetas',
-                  onPressed: () => context.read<RecipeService>().fetchMyPlanRecipes(),
+                  onPressed: () =>
+                      context.read<RecipeService>().fetchMyPlanRecipes(),
                 ),
               ],
             ),
             const SizedBox(height: 14),
-
 
             // Filtros de Categoría
             SingleChildScrollView(
@@ -2450,10 +1822,13 @@ class _HomeScreenState extends State<HomeScreen> {
             else if (allRecipes.isEmpty)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 36.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 36.0,
+                ),
                 decoration: BoxDecoration(
                   color: cardBg,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isDark ? Colors.white12 : const Color(0x0A000000),
                   ),
@@ -2516,7 +1891,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 separatorBuilder: (_, _) => const SizedBox(height: 16),
                 itemBuilder: (context, index) {
                   final recipe = filteredRecipes[index];
-                  return _buildRecipeCard(
+                  return NutritionRecipeCard(
+                    onDetails: () => _showRecipeDetailsSheet(
+                      recipe,
+                      isDark,
+                      cardBg,
+                      textPrimary,
+                      textSecondary,
+                      primaryGreen,
+                    ),
                     recipe: recipe,
                     isDark: isDark,
                     cardBg: cardBg,
@@ -2527,189 +1910,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
             const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecipeCard({
-    required RecipeModel recipe,
-    required bool isDark,
-    required Color cardBg,
-    required Color primaryGreen,
-    required Color textPrimary,
-    required Color textSecondary,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? Colors.white12 : const Color(0x0A000000),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Recipe Image & Chips
-          Stack(
-            children: [
-              if (recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty)
-                Image.network(
-                  recipe.imageUrl!,
-                  height: 160,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
-                    height: 140,
-                    color: primaryGreen.withValues(alpha: 0.15),
-                    child: Center(
-                      child: Icon(Icons.restaurant_rounded, size: 48, color: primaryGreen),
-                    ),
-                  ),
-                )
-              else
-                Container(
-                  height: 140,
-                  color: primaryGreen.withValues(alpha: 0.15),
-                  child: Center(
-                    child: Icon(Icons.restaurant_rounded, size: 48, color: primaryGreen),
-                  ),
-                ),
-              Positioned(
-                top: 12,
-                left: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black87,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    recipe.category,
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: primaryGreen,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    recipe.difficulty,
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  recipe.title,
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: textPrimary,
-                  ),
-                ),
-                if (recipe.description != null && recipe.description!.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    recipe.description!,
-                    style: TextStyle(fontSize: 13, color: textSecondary, height: 1.3),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-                const SizedBox(height: 14),
-
-                // Macronutrientes Chips
-                Row(
-                  children: [
-                    _buildMacroPill('${recipe.calories}', 'kcal', AppTheme.accentOrange),
-                    const SizedBox(width: 8),
-                    _buildMacroPill('${recipe.protein}g', 'Proteína', primaryGreen),
-                    const SizedBox(width: 8),
-                    _buildMacroPill('${recipe.carbohydrates}g', 'Carbs', Colors.blueAccent),
-                    const SizedBox(width: 8),
-                    _buildMacroPill('${recipe.fats}g', 'Grasas', Colors.purpleAccent),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Meta: Prep time, Cook time, Servings
-                Row(
-                  children: [
-                    Icon(Icons.schedule_rounded, size: 15, color: textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${recipe.prepTimeMinutes + recipe.cookTimeMinutes} min',
-                      style: TextStyle(fontSize: 12, color: textSecondary),
-                    ),
-                    const SizedBox(width: 16),
-                    Icon(Icons.person_outline_rounded, size: 15, color: textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${recipe.servings} porción',
-                      style: TextStyle(fontSize: 12, color: textSecondary),
-                    ),
-                    const Spacer(),
-                    TextButton.icon(
-                      style: TextButton.styleFrom(
-                        foregroundColor: primaryGreen,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      ),
-                      onPressed: () => _showRecipeDetailsSheet(recipe, isDark, cardBg, textPrimary, textSecondary, primaryGreen),
-                      icon: const Icon(Icons.menu_book_rounded, size: 16),
-                      label: const Text('Ver Receta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMacroPill(String val, String lbl, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            Text(
-              val,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
-            ),
-            Text(
-              lbl,
-              style: TextStyle(fontSize: 9, color: color.withValues(alpha: 0.85), fontWeight: FontWeight.w600),
-            ),
           ],
         ),
       ),
@@ -2743,103 +1943,156 @@ class _HomeScreenState extends State<HomeScreen> {
               bottom: true,
               child: SingleChildScrollView(
                 controller: scrollController,
-                padding: EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 28.0 + MediaQuery.of(context).viewPadding.bottom),
+                padding: EdgeInsets.fromLTRB(
+                  24.0,
+                  24.0,
+                  24.0,
+                  28.0 + MediaQuery.of(context).viewPadding.bottom,
+                ),
                 child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white24 : Colors.black12,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          recipe.title,
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textPrimary),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white24 : Colors.black12,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      Chip(label: Text(recipe.category), backgroundColor: primaryGreen.withValues(alpha: 0.15)),
-                      Chip(label: Text('${recipe.calories} kcal'), backgroundColor: AppTheme.accentOrange.withValues(alpha: 0.15)),
-                      Chip(label: Text('${recipe.prepTimeMinutes + recipe.cookTimeMinutes} min')),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            recipe.title,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: textPrimary,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        Chip(
+                          label: Text(recipe.category),
+                          backgroundColor: primaryGreen.withValues(alpha: 0.15),
+                        ),
+                        Chip(
+                          label: Text('${recipe.calories} kcal'),
+                          backgroundColor: AppTheme.accentOrange.withValues(
+                            alpha: 0.15,
+                          ),
+                        ),
+                        Chip(
+                          label: Text(
+                            '${recipe.prepTimeMinutes + recipe.cookTimeMinutes} min',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
 
-                  // Ingredientes
-                  Row(
-                    children: [
-                      Icon(Icons.format_list_bulleted_rounded, color: primaryGreen, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Ingredientes y Porciones',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
+                    // Ingredientes
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.format_list_bulleted_rounded,
+                          color: primaryGreen,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Ingredientes y Porciones',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : const Color(0x08000000),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0x08000000),
-                      borderRadius: BorderRadius.circular(12),
+                      child: Text(
+                        recipe.ingredients,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: textPrimary,
+                          height: 1.5,
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      recipe.ingredients,
-                      style: TextStyle(fontSize: 14, color: textPrimary, height: 1.5),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                  // Instrucciones
-                  Row(
-                    children: [
-                      Icon(Icons.kitchen_rounded, color: primaryGreen, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Modo de Preparación',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textPrimary),
+                    // Instrucciones
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.kitchen_rounded,
+                          color: primaryGreen,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Modo de Preparación',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : const Color(0x08000000),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0x08000000),
-                      borderRadius: BorderRadius.circular(12),
+                      child: Text(
+                        recipe.instructions,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: textPrimary,
+                          height: 1.5,
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      recipe.instructions,
-                      style: TextStyle(fontSize: 14, color: textPrimary, height: 1.5),
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                ],
+                    const SizedBox(height: 30),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
         );
       },
     );
@@ -2857,263 +2110,174 @@ class _HomeScreenState extends State<HomeScreen> {
     required Color textSecondary,
   }) {
     final user = authService.currentUser;
-    final nutri = patientService.linkedNutritionist;
-
+    final sub = context.watch<SubscriptionService>();
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Mi Perfil',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Detalles de tu cuenta de paciente',
-            style: TextStyle(
-              fontSize: 13,
-              color: textSecondary,
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // User Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(22.0),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark ? Colors.white12 : const Color(0x0A000000),
+          const NutritionHeading('Perfil'),
+          const SizedBox(height: 28),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 34,
+                backgroundColor: primaryGreen.withValues(alpha: .12),
+                child: Text(
+                  user?.fullName.isNotEmpty == true
+                      ? user!.fullName[0].toUpperCase()
+                      : 'P',
+                  style: TextStyle(fontSize: 28, color: primaryGreen),
+                ),
               ),
-            ),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 36,
-                  backgroundColor: primaryGreen.withValues(alpha: 0.15),
-                  child: Text(
-                    (user != null && user.fullName.isNotEmpty)
-                        ? user.fullName[0].toUpperCase()
-                        : 'P',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: primaryGreen,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  user?.fullName ?? 'Paciente',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  user?.email ?? '',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: primaryGreen.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Rol: ${user?.roleId ?? "CLIENTE"}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: primaryGreen,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Details List Card
-          Container(
-            padding: const EdgeInsets.all(20.0),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark ? Colors.white12 : const Color(0x0A000000),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Información General',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildProfileItem(
-                  icon: Icons.badge_outlined,
-                  title: 'Nombre',
-                  value: user?.fullName ?? 'Sin registrar',
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  primaryGreen: primaryGreen,
-                ),
-                const SizedBox(height: 14),
-                _buildProfileItem(
-                  icon: Icons.email_outlined,
-                  title: 'Correo',
-                  value: user?.email ?? 'Sin registrar',
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  primaryGreen: primaryGreen,
-                ),
-                const SizedBox(height: 14),
-                _buildProfileItem(
-                  icon: Icons.medical_services_outlined,
-                  title: 'Especialista Asignado',
-                  value: nutri != null ? nutri.nutritionistName : 'Sin vincular aún',
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  primaryGreen: primaryGreen,
-                ),
-                const SizedBox(height: 14),
-                _buildProfileItem(
-                  icon: Icons.verified_user_outlined,
-                  title: 'Estado de Cuenta',
-                  value: user?.isActive == true ? 'Activa' : 'Inactiva',
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  primaryGreen: primaryGreen,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Dark Mode Switch Card
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark ? Colors.white12 : const Color(0x0A000000),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-                      color: primaryGreen,
-                      size: 22,
-                    ),
-                    const SizedBox(width: 14),
                     Text(
-                      'Modo Oscuro',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: textPrimary,
-                      ),
+                      user?.fullName ?? 'Paciente',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      user?.email ?? '',
+                      style: TextStyle(color: textSecondary),
+                    ),
+                    const SizedBox(height: 10),
+                    NutritionStatus(
+                      sub.isPremium
+                          ? 'Premium activo'
+                          : sub.hasResolvedSubscription
+                          ? 'Plan gratuito'
+                          : 'Comprobando plan…',
+                      icon: sub.isPremium
+                          ? Icons.workspace_premium_outlined
+                          : Icons.eco_outlined,
+                      gold: sub.isPremium,
                     ),
                   ],
                 ),
-                Switch(
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          NutritionCard(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.person_outline_rounded),
+                  title: const Text('Datos personales'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => showModalBottomSheet(
+                    context: context,
+                    showDragHandle: true,
+                    isScrollControlled: true,
+                    builder: (context) => SafeArea(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const NutritionHeading('Datos personales'),
+                            const SizedBox(height: 16),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Nombre'),
+                              subtitle: Text(user?.fullName ?? 'Sin registrar'),
+                            ),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Correo'),
+                              subtitle: SelectableText(
+                                user?.email ?? 'Sin registrar',
+                              ),
+                            ),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Especialista'),
+                              subtitle: Text(
+                                patientService
+                                        .linkedNutritionist
+                                        ?.nutritionistName ??
+                                    'Sin vincular',
+                              ),
+                            ),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Cuenta'),
+                              subtitle: Text(
+                                user?.isActive == true ? 'Activa' : 'Inactiva',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const Divider(indent: 56, endIndent: 12),
+                ListTile(
+                  leading: const Icon(Icons.favorite_border_rounded),
+                  title: const Text('Mi ficha de salud'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AnamnesisScreen()),
+                  ),
+                ),
+                const Divider(indent: 56, endIndent: 12),
+                SwitchListTile(
+                  secondary: const Icon(Icons.palette_outlined),
+                  title: const Text('Apariencia'),
+                  subtitle: Text(isDark ? 'Modo oscuro' : 'Modo claro'),
                   value: isDark,
-                  activeThumbColor: primaryGreen,
-                  onChanged: (val) => themeService.toggleTheme(),
+                  onChanged: (_) => themeService.toggleTheme(),
+                ),
+                const Divider(indent: 56, endIndent: 12),
+                ListTile(
+                  leading: const Icon(Icons.notifications_none_rounded),
+                  title: const Text('Notificaciones'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: _openNotifications,
+                ),
+                const Divider(indent: 56, endIndent: 12),
+                ListTile(
+                  leading: const Icon(Icons.receipt_long_outlined),
+                  title: const Text('Mis comprobantes'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SubscriptionReceiptsScreen(),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 24),
-
-          // Logout Button
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed: () => _showLogoutDialog(context, authService),
-              icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20),
-              label: const Text(
-                'Cerrar Sesión',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
+          NutritionCard(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: ListTile(
+              leading: const Icon(
+                Icons.logout_rounded,
+                color: AppTheme.accentCoral,
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.accentCoral,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+              title: const Text(
+                'Cerrar sesión',
+                style: TextStyle(color: AppTheme.accentCoral),
               ),
+              trailing: const Icon(
+                Icons.chevron_right_rounded,
+                color: AppTheme.accentCoral,
+              ),
+              onTap: () => _showLogoutDialog(context, authService),
             ),
           ),
           const SizedBox(height: 24),
         ],
       ),
-    );
-  }
-
-  Widget _buildProfileItem({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color textPrimary,
-    required Color textSecondary,
-    required Color primaryGreen,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, color: primaryGreen, size: 20),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 11,
-                color: textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: textPrimary,
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 

@@ -82,7 +82,7 @@ class Subscription {
   bool get isPremium {
     return planName.toUpperCase() == 'CLIENTE_PREMIUM' &&
         status.toUpperCase() == 'ACTIVE' &&
-        (expiresAt == null || expiresAt!.isAfter(DateTime.now()));
+        (expiresAt != null && expiresAt!.isAfter(DateTime.now()));
   }
 
   bool get isActive => status.toUpperCase() == 'ACTIVE';

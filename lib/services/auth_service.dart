@@ -42,10 +42,12 @@ class AuthService extends ChangeNotifier {
       return;
     }
 
+    _apiService.currentUserId = await _storageService.getCurrentUserId();
     try {
       final data = await _apiService.get('/users/me');
       _currentUser = User.fromJson(data);
       _apiService.currentUserId = _currentUser?.id;
+      await _storageService.saveCurrentUserId(_currentUser!.id);
       await cacheService?.guardar('/users/me', data, userId: _currentUser?.id);
       _status = AuthStatus.authenticated;
     } catch (e) {
@@ -53,9 +55,9 @@ class AuthService extends ChangeNotifier {
         await _storageService.clearTokens();
         _currentUser = null;
         _status = AuthStatus.unauthenticated;
-      } else {
+      } else if (e is ApiException && e.statusCode == 0) {
         // Modo offline: leer el perfil desde el almacenamiento local
-        final cached = await cacheService?.obtener('/users/me');
+        final cached = await cacheService?.obtener('/users/me', userId: _apiService.currentUserId);
         if (cached != null) {
           _currentUser = User.fromJson(cached);
           _apiService.currentUserId = _currentUser?.id;
@@ -63,6 +65,10 @@ class AuthService extends ChangeNotifier {
         } else {
           _status = AuthStatus.unauthenticated;
         }
+      }
+      if (_status != AuthStatus.authenticated) {
+        _currentUser = null;
+        _status = AuthStatus.unauthenticated;
       }
     }
     notifyListeners();
@@ -85,6 +91,7 @@ class AuthService extends ChangeNotifier {
       _currentUser = User.fromJson(response['user']);
       _apiService.currentUserId = _currentUser?.id;
 
+      await _storageService.saveCurrentUserId(_currentUser!.id);
       await _storageService.saveTokens(
         accessToken: accessToken,
         refreshToken: refreshToken,
@@ -169,6 +176,7 @@ class AuthService extends ChangeNotifier {
         _currentUser = User.fromJson(response);
         await cacheService?.guardar('/users/me', response, userId: uid);
       } catch (e) {
+        if (e is! ApiException || e.statusCode != 0) rethrow;
         final cola = colaService;
         final user = _currentUser;
         if (cola != null && user != null) {
@@ -246,8 +254,8 @@ class AuthService extends ChangeNotifier {
   Future<void> logout() async {
     final uid = _currentUser?.id;
     try {
-      await _apiService.delete('/activity-logs');
-      await _apiService.post('/auth/logout?client_platform=mobile&clear_logs=true');
+      final refresh = await _storageService.getRefreshToken();
+      await _apiService.post('/auth/logout', body: {'refresh_token': refresh});
     } catch (_) {}
 
     if (uid != null) {

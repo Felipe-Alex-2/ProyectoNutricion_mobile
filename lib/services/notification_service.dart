@@ -34,6 +34,8 @@ class NotificationService extends ChangeNotifier {
     _pollingTimer = null;
   }
 
+  void reset() { stopPolling(); _notifications = []; _unreadCount = 0; _latestAlert = null; _isLoading = false; notifyListeners(); }
+
   Future<void> playAlertSoundAndVibrate() async {
     try {
       await HapticFeedback.vibrate();

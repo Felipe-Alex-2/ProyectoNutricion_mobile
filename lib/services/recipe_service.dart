@@ -15,6 +15,8 @@ class RecipeService extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  void reset() { _myPlanRecipes = []; _errorMessage = null; _isLoading = false; notifyListeners(); }
+
   Future<void> fetchMyPlanRecipes() async {
     _isLoading = true;
     _errorMessage = null;

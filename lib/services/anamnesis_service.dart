@@ -36,6 +36,8 @@ class AnamnesisService extends ChangeNotifier {
   bool get isSavedOffline => _isSavedOffline;
   bool get hasCompletedAnamnesis => _anamnesis != null;
 
+  void reset() { _anamnesis = null; _errorMessage = null; _isLoading = false; _isSuccess = false; _isSavedOffline = false; notifyListeners(); }
+
   Future<void> fetchMyAnamnesis() async {
     _isLoading = true;
     _errorMessage = null;
@@ -67,8 +69,9 @@ class AnamnesisService extends ChangeNotifier {
         _anamnesis = null;
       }
     } catch (e) {
+      if (effectiveUserId != userId || (e is ApiException && e.statusCode != 0)) _anamnesis = null;
       // Fallback a cache local si la red falla
-      if (_anamnesis == null && cacheService != null) {
+      if (e is ApiException && e.statusCode == 0 && effectiveUserId == userId && _anamnesis == null && cacheService != null) {
         final cached = await cacheService!.obtener('/clinical/anamnesis/me', userId: userId);
         if (cached != null && cached is Map<String, dynamic>) {
           _anamnesis = PatientAnamnesisModel.fromJson(cached);
@@ -126,16 +129,8 @@ class AnamnesisService extends ChangeNotifier {
       }
       throw Exception('Respuesta inesperada al guardar la ficha de salud');
     } catch (e) {
-      final errorStr = e.toString().toLowerCase();
-
-      // Si fue error de red/conexion, encolar offline automaticamente en vez de fallar
-      if (errorStr.contains('conexión') ||
-          errorStr.contains('conexion') ||
-          errorStr.contains('socket') ||
-          errorStr.contains('failed host lookup') ||
-          errorStr.contains('sin conexión') ||
-          errorStr.contains('sin conexion') ||
-          errorStr.contains('timeout')) {
+      // Only transport errors can become pending offline writes.
+      if (e is ApiException && e.statusCode == 0) {
         return await _guardarAnamnesisOffline(model);
       }
 

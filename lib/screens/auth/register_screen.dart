@@ -1,5 +1,8 @@
+import '../../widgets/nutrition_ui.dart';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../config/theme.dart';
 import '../../models/branch_model.dart';
 import '../../services/auth_service.dart';
@@ -95,7 +98,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final primaryColor = AppTheme.primaryGreen;
     final borderColor = _branchError != null
         ? Colors.redAccent
-        : (_isBranchAccordionOpen ? primaryColor : Colors.grey.withValues(alpha: 0.3));
+        : (_isBranchAccordionOpen
+              ? primaryColor
+              : Colors.grey.withValues(alpha: 0.3));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,7 +133,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 },
                 borderRadius: BorderRadius.circular(14),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   child: Row(
                     children: [
                       Container(
@@ -163,9 +171,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   : 'Toca para elegir tu sucursal...',
                               style: TextStyle(
                                 fontSize: 14.5,
-                                fontWeight: _selectedBranch != null ? FontWeight.bold : FontWeight.w500,
+                                fontWeight: _selectedBranch != null
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
                                 color: _selectedBranch != null
-                                    ? (isDark ? Colors.white : const Color(0xFF1B2E24))
+                                    ? (isDark
+                                          ? Colors.white
+                                          : const Color(0xFF1B2E24))
                                     : Colors.grey[500],
                               ),
                               maxLines: 1,
@@ -204,7 +216,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           SizedBox(width: 12),
                           Text(
                             'Cargando sucursales...',
-                            style: TextStyle(fontSize: 13, color: Color(0xFF687B70)),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF687B70),
+                            ),
                           ),
                         ],
                       ),
@@ -224,9 +239,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     itemCount: _branches.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 6),
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 6),
                     itemBuilder: (context, index) {
                       final branch = _branches[index];
                       final isSelected = _selectedBranch?.id == branch.id;
@@ -241,14 +260,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         },
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? primaryColor.withValues(alpha: 0.12)
-                                : (isDark ? const Color(0xFF28362D) : const Color(0xFFF7FAF8)),
+                                : (isDark
+                                      ? const Color(0xFF28362D)
+                                      : const Color(0xFFF7FAF8)),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: isSelected ? primaryColor : Colors.transparent,
+                              color: isSelected
+                                  ? primaryColor
+                                  : Colors.transparent,
                               width: 1.5,
                             ),
                           ),
@@ -258,7 +284,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 isSelected
                                     ? Icons.check_circle_rounded
                                     : Icons.radio_button_unchecked_rounded,
-                                color: isSelected ? primaryColor : Colors.grey[400],
+                                color: isSelected
+                                    ? primaryColor
+                                    : Colors.grey[400],
                                 size: 20,
                               ),
                               const SizedBox(width: 10),
@@ -273,8 +301,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             branch.name,
                                             style: TextStyle(
                                               fontSize: 14,
-                                              fontWeight:
-                                                  isSelected ? FontWeight.bold : FontWeight.w600,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.bold
+                                                  : FontWeight.w600,
                                               color: isDark
                                                   ? Colors.white
                                                   : const Color(0xFF1B2E24),
@@ -284,10 +313,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         if (branch.code.isNotEmpty)
                                           Container(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 6, vertical: 2),
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
                                             decoration: BoxDecoration(
-                                              color: primaryColor.withValues(alpha: 0.15),
-                                              borderRadius: BorderRadius.circular(6),
+                                              color: primaryColor.withValues(
+                                                alpha: 0.15,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
                                             ),
                                             child: Text(
                                               branch.code,
@@ -305,14 +339,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       const SizedBox(height: 3),
                                       Row(
                                         children: [
-                                          Icon(Icons.location_on_outlined,
-                                              size: 13, color: Colors.grey[500]),
+                                          Icon(
+                                            Icons.location_on_outlined,
+                                            size: 13,
+                                            color: Colors.grey[500],
+                                          ),
                                           const SizedBox(width: 4),
                                           Expanded(
                                             child: Text(
                                               branch.address!,
                                               style: TextStyle(
-                                                  fontSize: 11.5, color: Colors.grey[600]),
+                                                fontSize: 11.5,
+                                                color: Colors.grey[600],
+                                              ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                             ),
@@ -349,75 +388,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authService = context.watch<AuthService>();
-    final isAuthenticating = authService.status == AuthStatus.authenticating;
+    final authenticating =
+        context.watch<AuthService>().status == AuthStatus.authenticating;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
+      appBar: AppBar(),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: Form(
                 key: _formKey,
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Brand Icon
-                    Center(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(22),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primaryGreen.withValues(alpha: 0.25),
-                              blurRadius: 18,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(22),
-                          child: Image.asset(
-                            'assets/images/logo.png',
-                            width: 76,
-                            height: 76,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Title
-                    const Text(
-                      'Crear Cuenta',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.5,
-                        color: AppTheme.primaryGreen,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Únete a NutriSalud y comienza hoy',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF687B70),
-                      ),
+                    const NutritionBrand(), const SizedBox(height: 24),
+                    const NutritionHeading(
+                      'Empecemos contigo',
+                      subtitle: 'Crea tu cuenta y da el primer paso.',
                     ),
                     const SizedBox(height: 28),
-
                     // Full Name Field
                     TextFormField(
                       controller: _nameController,
@@ -530,22 +522,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     _buildBranchAccordion(isDark),
                     const SizedBox(height: 28),
 
-                    // Submit Button
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryGreen,
+                    NutritionCard(
+                      color: isDark
+                          ? AppTheme.darkCardAccent
+                          : AppTheme.primaryGreenLight,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.verified_user_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Tu información nos ayuda a personalizar tu experiencia en NutriSalud.',
+                            ),
+                          ),
+                        ],
                       ),
-                      onPressed: isAuthenticating ? null : _submit,
-                      child: isAuthenticating
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: authenticating ? null : _submit,
+                      child: authenticating
                           ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Crear Cuenta'),
+                          : const Text('Crear cuenta'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Ya tengo cuenta · Iniciar sesión'),
                     ),
                   ],
                 ),

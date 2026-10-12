@@ -1,8 +1,12 @@
+import '../../widgets/nutrition_ui.dart';
+
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+
 import '../../config/theme.dart';
 import '../../services/food_vision_service.dart';
 import '../../services/theme_service.dart';
@@ -23,17 +27,21 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDefaultSampleImage();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<FoodVisionService>().clearLastAnalysis();
+    });
   }
 
   Future<void> _loadDefaultSampleImage() async {
     try {
-      final byteData = await rootBundle.load('assets/images/fotocomida.png');
+      final byteData = await rootBundle.load(
+        'assets/images/welcome_nutrition.png',
+      );
       final bytes = byteData.buffer.asUint8List();
       if (mounted) {
         setState(() {
           _selectedImageBytes = bytes;
-          _selectedImageName = 'FOTOcomida.png';
+          _selectedImageName = 'comida-ejemplo.png';
         });
         context.read<FoodVisionService>().clearLastAnalysis();
       }
@@ -88,7 +96,10 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
     }
 
     final service = context.read<FoodVisionService>();
-    final result = await service.analyzeImage(_selectedImageBytes!, _selectedImageName ?? 'comida.jpg');
+    final result = await service.analyzeImage(
+      _selectedImageBytes!,
+      _selectedImageName ?? 'comida.jpg',
+    );
 
     if (result == null && mounted && service.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -104,10 +115,16 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
   Widget build(BuildContext context) {
     final themeService = context.watch<ThemeService>();
     final isDark = themeService.isDarkMode;
-    final primaryGreen = isDark ? AppTheme.primaryGreenDark : AppTheme.primaryGreen;
+    final primaryGreen = isDark
+        ? AppTheme.primaryGreenDark
+        : AppTheme.primaryGreen;
     final cardBg = isDark ? AppTheme.darkCard : AppTheme.lightCard;
-    final textPrimary = isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary;
-    final textSecondary = isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary;
+    final textPrimary = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final textSecondary = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
 
     final visionService = context.watch<FoodVisionService>();
     final isAnalyzing = visionService.isAnalyzing;
@@ -116,10 +133,10 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
     return Scaffold(
       backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
       appBar: AppBar(
-        title: const Text('Escanear Comida con IA'),
+        title: const Text('Analizar alimento'),
         backgroundColor: isDark ? AppTheme.darkSidebar : AppTheme.lightSidebar,
         elevation: 0,
-        centerTitle: true,
+        centerTitle: false,
       ),
       body: SafeArea(
         bottom: true,
@@ -128,51 +145,12 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: cardBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isDark ? Colors.white10 : const Color(0x0A000000)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: primaryGreen.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.camera_enhance_rounded, color: primaryGreen, size: 28),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Visión Artificial Nutricional',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Toma o sube una foto de tu plato para estimar ingredientes y macronutrientes al instante.',
-                            style: TextStyle(fontSize: 12, color: textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              const NutritionHeading(
+                'Conoce mejor lo que comes',
+                subtitle:
+                    'Añade una foto de tu plato para estimar sus nutrientes.',
               ),
-
-              const SizedBox(height: 20),
-
+              const SizedBox(height: 24),
               // Image Preview or Placeholder
               GestureDetector(
                 onTap: isAnalyzing ? null : () => _showPickerSheet(context),
@@ -183,7 +161,9 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                     color: cardBg,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: _selectedImageBytes != null ? primaryGreen : (isDark ? Colors.white12 : Colors.black12),
+                      color: _selectedImageBytes != null
+                          ? primaryGreen
+                          : (isDark ? Colors.white12 : Colors.black12),
                       width: 2,
                     ),
                   ),
@@ -193,12 +173,18 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              Image.memory(_selectedImageBytes!, fit: BoxFit.cover),
+                              Image.memory(
+                                _selectedImageBytes!,
+                                fit: BoxFit.cover,
+                              ),
                               Positioned(
                                 top: 12,
                                 left: 12,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.black.withValues(alpha: 0.65),
                                     borderRadius: BorderRadius.circular(12),
@@ -206,10 +192,14 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.restaurant_rounded, size: 14, color: Colors.white),
+                                      Icon(
+                                        Icons.restaurant_rounded,
+                                        size: 14,
+                                        color: Colors.white,
+                                      ),
                                       SizedBox(width: 6),
                                       Text(
-                                        'Foto de Plato Cargada',
+                                        'Tu fotografía',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 11,
@@ -224,7 +214,10 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                                 bottom: 12,
                                 right: 12,
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.black.withValues(alpha: 0.7),
                                     borderRadius: BorderRadius.circular(20),
@@ -232,9 +225,19 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.camera_alt_outlined, size: 14, color: Colors.white),
+                                      Icon(
+                                        Icons.camera_alt_outlined,
+                                        size: 14,
+                                        color: Colors.white,
+                                      ),
                                       SizedBox(width: 6),
-                                      Text('Cambiar foto', style: TextStyle(color: Colors.white, fontSize: 11)),
+                                      Text(
+                                        'Cambiar foto',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -247,13 +250,21 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              Image.asset('assets/images/fotocomida.png', fit: BoxFit.cover),
+                              Image.asset(
+                                'assets/images/welcome_nutrition.png',
+                                fit: BoxFit.cover,
+                                cacheWidth: 1000,
+                                excludeFromSemantics: true,
+                              ),
                               Container(
                                 color: Colors.black.withValues(alpha: 0.25),
                               ),
                               Center(
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.black.withValues(alpha: 0.65),
                                     borderRadius: BorderRadius.circular(16),
@@ -261,11 +272,19 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                                   child: const Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.add_a_photo_outlined, size: 36, color: Colors.white),
+                                      Icon(
+                                        Icons.add_a_photo_outlined,
+                                        size: 36,
+                                        color: Colors.white,
+                                      ),
                                       SizedBox(height: 6),
                                       Text(
-                                        'Presiona para tomar foto o elegir de la galería',
-                                        style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
+                                        'Añade una foto de tu plato',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -287,11 +306,13 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                         onPressed: () => _pickImage(ImageSource.camera),
                         icon: const Icon(Icons.photo_camera_rounded),
-                        label: const Text('Tomar Foto'),
+                        label: const Text('Cámara'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -299,7 +320,9 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                         onPressed: () => _pickImage(ImageSource.gallery),
                         icon: const Icon(Icons.photo_library_rounded),
@@ -314,13 +337,18 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                   height: 52,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryGreen,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      backgroundColor: AppTheme.primaryGreen,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     onPressed: isAnalyzing ? null : _analyzePhoto,
                     icon: isAnalyzing
                         ? const SizedBox.shrink()
-                        : const Icon(Icons.auto_awesome_rounded, color: Colors.white),
+                        : const Icon(
+                            Icons.auto_awesome_rounded,
+                            color: Colors.white,
+                          ),
                     label: isAnalyzing
                         ? const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -328,15 +356,28 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                               SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
                               ),
                               SizedBox(width: 12),
-                              Text('Analizando plato con IA...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              Text(
+                                'Analizando plato con IA...',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ],
                           )
                         : const Text(
-                            'Analizar Plato con IA',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                            'Analizar foto',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                   ),
                 ),
@@ -347,11 +388,18 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        onPressed: isAnalyzing ? null : () => _pickImage(ImageSource.camera),
+                        onPressed: isAnalyzing
+                            ? null
+                            : () => _pickImage(ImageSource.camera),
                         icon: const Icon(Icons.photo_camera_rounded, size: 18),
-                        label: const Text('Tomar Foto', style: TextStyle(fontSize: 12.5)),
+                        label: const Text(
+                          'Cámara',
+                          style: TextStyle(fontSize: 12.5),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -359,17 +407,26 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                       child: OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        onPressed: isAnalyzing ? null : () => _pickImage(ImageSource.gallery),
+                        onPressed: isAnalyzing
+                            ? null
+                            : () => _pickImage(ImageSource.gallery),
                         icon: const Icon(Icons.photo_library_rounded, size: 18),
-                        label: const Text('Galería', style: TextStyle(fontSize: 12.5)),
+                        label: const Text(
+                          'Galería',
+                          style: TextStyle(fontSize: 12.5),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     IconButton.outlined(
                       style: IconButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         padding: const EdgeInsets.all(12),
                       ),
                       tooltip: 'Restaurar foto de muestra',
@@ -386,7 +443,11 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
               if (result != null) ...[
                 Text(
                   'Resultados del Análisis',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textPrimary),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 12),
 
@@ -396,7 +457,9 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                   decoration: BoxDecoration(
                     color: cardBg,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: primaryGreen.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: primaryGreen.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -406,23 +469,40 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Estimación Calórica Total', style: TextStyle(fontSize: 12, color: textSecondary)),
+                              Text(
+                                'Estimación nutricional',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: textSecondary,
+                                ),
+                              ),
                               const SizedBox(height: 2),
                               Text(
                                 '${result.totalCalorias.toStringAsFixed(0)} kcal',
-                                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: primaryGreen),
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryGreen,
+                                ),
                               ),
                             ],
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
                             decoration: BoxDecoration(
                               color: primaryGreen.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               'Confianza: ${result.confianza.toUpperCase()}',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryGreen),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: primaryGreen,
+                              ),
                             ),
                           ),
                         ],
@@ -431,10 +511,26 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _buildNutrientBadge('Proteínas', '${result.totalProteinas.toStringAsFixed(1)}g', AppTheme.accentCoral),
-                          _buildNutrientBadge('Carbos', '${result.totalCarbs.toStringAsFixed(1)}g', AppTheme.accentOrange),
-                          _buildNutrientBadge('Grasas', '${result.totalGrasas.toStringAsFixed(1)}g', AppTheme.accentBlue),
-                          _buildNutrientBadge('Fibra', '${result.totalFibra.toStringAsFixed(1)}g', const Color(0xFF10B981)),
+                          _buildNutrientBadge(
+                            'Proteínas',
+                            '${result.totalProteinas.toStringAsFixed(1)}g',
+                            AppTheme.accentCoral,
+                          ),
+                          _buildNutrientBadge(
+                            'Carbos',
+                            '${result.totalCarbs.toStringAsFixed(1)}g',
+                            AppTheme.accentOrange,
+                          ),
+                          _buildNutrientBadge(
+                            'Grasas',
+                            '${result.totalGrasas.toStringAsFixed(1)}g',
+                            AppTheme.accentBlue,
+                          ),
+                          _buildNutrientBadge(
+                            'Fibra',
+                            '${result.totalFibra.toStringAsFixed(1)}g',
+                            const Color(0xFF10B981),
+                          ),
                         ],
                       ),
                     ],
@@ -448,14 +544,22 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1C251D) : const Color(0xFFF1F8E9),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: primaryGreen.withValues(alpha: 0.3)),
+                      color: isDark
+                          ? const Color(0xFF1C251D)
+                          : const Color(0xFFF1F8E9),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: primaryGreen.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.insights_rounded, color: primaryGreen, size: 22),
+                        Icon(
+                          Icons.insights_rounded,
+                          color: primaryGreen,
+                          size: 22,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -463,12 +567,20 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                             children: [
                               Text(
                                 'Evaluación según tu Meta Diaria',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textPrimary),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: textPrimary,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 result.evalMessage!,
-                                style: TextStyle(fontSize: 12, color: textSecondary, height: 1.35),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: textSecondary,
+                                  height: 1.35,
+                                ),
                               ),
                             ],
                           ),
@@ -481,24 +593,54 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
 
                 // Detected Food List
                 if (result.alimentos.isNotEmpty) ...[
-                  Text('Alimentos Identificados en la Foto:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textPrimary)),
+                  Text(
+                    'Alimentos Identificados en la Foto:',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: textPrimary,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  ...result.alimentos.map((f) => Card(
-                        color: cardBg,
-                        margin: const EdgeInsets.only(bottom: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: primaryGreen.withValues(alpha: 0.15),
-                            child: Icon(Icons.restaurant_rounded, color: primaryGreen, size: 18),
+                  ...result.alimentos.map(
+                    (f) => Card(
+                      color: cardBg,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: primaryGreen.withValues(alpha: 0.15),
+                          child: Icon(
+                            Icons.restaurant_rounded,
+                            color: primaryGreen,
+                            size: 18,
                           ),
-                          title: Text(f.nombre, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textPrimary)),
-                          subtitle: Text('Porción aprox: ${f.porcionG.toStringAsFixed(0)}g | P: ${f.proteinasG}g | C: ${f.carbohidratosG}g | G: ${f.grasasG}g | Fibra: ${f.fibraG}g',
-                              style: TextStyle(fontSize: 11, color: textSecondary)),
-                          trailing: Text('${f.calorias.toStringAsFixed(0)} kcal',
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryGreen)),
                         ),
-                      )),
+                        title: Text(
+                          f.nombre,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: textPrimary,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Porción aprox: ${f.porcionG.toStringAsFixed(0)}g | P: ${f.proteinasG}g | C: ${f.carbohidratosG}g | G: ${f.grasasG}g | Fibra: ${f.fibraG}g',
+                          style: TextStyle(fontSize: 11, color: textSecondary),
+                        ),
+                        trailing: Text(
+                          '${f.calorias.toStringAsFixed(0)} kcal',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: primaryGreen,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
 
                 const SizedBox(height: 12),
@@ -507,12 +649,18 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.04)
+                        : Colors.black.withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                      const Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -535,7 +683,9 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
   void _showPickerSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => SafeArea(
         child: Wrap(
           children: [
@@ -572,9 +722,23 @@ class _FoodVisionScreenState extends State<FoodVisionScreen> {
   Widget _buildNutrientBadge(String label, String value, Color color) {
     return Column(
       children: [
-        Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const SizedBox(height: 2),
-        Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
       ],
     );
   }

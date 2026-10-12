@@ -3,10 +3,17 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'elemento_cola.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ColaSincronizacionService extends ChangeNotifier {
   Directory? _documentsDir;
+  final FlutterSecureStorage _storage;
+  ColaSincronizacionService({FlutterSecureStorage? storage}) : _storage = storage ?? const FlutterSecureStorage();
+  String _secureKey(String userId) => 'nutri_queue_v2_${base64Url.encode(utf8.encode(userId))}';
   final List<ElementoCola> _colaMemoria = [];
+  String? _loadedUserId;
+  int _loadVersion = 0;
+  Future<void>? _loading;
 
   List<ElementoCola> get elementos => List.unmodifiable(_colaMemoria);
   int get cantidadPendientes => _colaMemoria.where((e) => e.esSincronizable).length;
@@ -29,78 +36,43 @@ class ColaSincronizacionService extends ChangeNotifier {
   }
 
   /// Carga la cola desde el almacenamiento persistente
-  Future<void> cargarCola({String? userId}) async {
-    try {
-      final file = await _getFile(userId);
-      final List<ElementoCola> cargados = [];
-
-      if (await file.exists()) {
-        final content = await file.readAsString();
-        if (content.isNotEmpty) {
-          final List<dynamic> list = jsonDecode(content);
-          cargados.addAll(list.map((item) => ElementoCola.fromJson(item as Map<String, dynamic>)));
-        }
-      }
-
-      // Si se especificó un usuario, recuperar y fusionar elementos huérfanos de la cola por defecto
-      if (userId != null && userId.isNotEmpty) {
-        final defaultFile = await _getFile(null);
-        if (await defaultFile.exists()) {
-          try {
-            final defContent = await defaultFile.readAsString();
-            if (defContent.isNotEmpty) {
-              final List<dynamic> defList = jsonDecode(defContent);
-              for (final item in defList) {
-                final elem = ElementoCola.fromJson(item as Map<String, dynamic>);
-                if (!cargados.any((existing) => existing.id == elem.id)) {
-                  cargados.add(ElementoCola(
-                    id: elem.id,
-                    userId: userId,
-                    metodo: elem.metodo,
-                    endpoint: elem.endpoint,
-                    cuerpo: elem.cuerpo,
-                    tipoAccion: elem.tipoAccion,
-                    descripcionHumana: elem.descripcionHumana,
-                    fechaCreacion: elem.fechaCreacion,
-                    reintentos: elem.reintentos,
-                    estado: elem.estado,
-                    mensajeError: elem.mensajeError,
-                    metadata: elem.metadata,
-                  ));
-                }
-              }
-            }
-            await defaultFile.delete();
-          } catch (e) {
-            debugPrint('[ColaSincronizacionService] Advertencia al migrar cola default: $e');
-          }
-        }
-      }
-
-      _colaMemoria.clear();
-      _colaMemoria.addAll(cargados);
-      if (userId != null && userId.isNotEmpty && cargados.isNotEmpty) {
-        await _guardarDisco(userId);
-      }
-      notifyListeners();
-    } catch (e) {
-      debugPrint('[ColaSincronizacionService] Error al cargar cola: $e');
-    }
+  Future<void> cargarCola({String? userId}) {
+    final pending = _cargarCola(userId: userId);
+    _loading = pending;
+    return pending.whenComplete(() { if (identical(_loading, pending)) _loading = null; });
   }
 
-  /// Guarda la cola en disco
-  Future<void> _guardarDisco(String? userId) async {
-    try {
-      final file = await _getFile(userId);
-      final jsonList = _colaMemoria.map((e) => e.toJson()).toList();
-      await file.writeAsString(jsonEncode(jsonList), flush: true);
-    } catch (e) {
-      debugPrint('[ColaSincronizacionService] Error al persistir cola: $e');
+  Future<void> _cargarCola({String? userId}) async {
+    final version = ++_loadVersion;
+    _loadedUserId = userId;
+    _colaMemoria.clear();
+    if (userId == null || userId.isEmpty) { notifyListeners(); return; }
+    var content = await _storage.read(key: _secureKey(userId));
+    final legacy = await _getFile(userId);
+    if (content == null && await legacy.exists()) content = await legacy.readAsString();
+    if (version != _loadVersion) return;
+    if (content != null) {
+      final rows = jsonDecode(content) as List;
+      _colaMemoria.addAll(rows.map((row) => ElementoCola.fromJson(row as Map<String, dynamic>)).where((e) => e.userId == userId));
+      await _guardarDisco(userId);
     }
+    if (await legacy.exists()) await legacy.delete();
+    notifyListeners();
+  }
+
+  Future<void> _guardarDisco(String? userId) async {
+    if (userId == null || userId.isEmpty) throw StateError('La cola requiere un usuario.');
+    final rows = _colaMemoria.where((e) => e.userId == userId).map((e) => e.toJson()).toList();
+    await _storage.write(key: _secureKey(userId), value: jsonEncode(rows));
   }
 
   /// Encola una acción offline
   Future<void> encolar(ElementoCola elemento) async {
+    if (elemento.userId.isEmpty) throw StateError('La operación requiere un usuario.');
+    if (_loading != null) await _loading;
+    if (_loadedUserId != elemento.userId) await cargarCola(userId: elemento.userId);
+    if (_loadedUserId != elemento.userId) throw StateError("La cuenta cambió durante la operación.");
+    if (_colaMemoria.length >= 200) throw StateError('Hay demasiadas operaciones pendientes. Sincroniza primero.');
     _colaMemoria.add(elemento);
     await _guardarDisco(elemento.userId);
     notifyListeners();
@@ -113,14 +85,14 @@ class ColaSincronizacionService extends ChangeNotifier {
     String? error,
     String? userId,
   }) async {
-    final index = _colaMemoria.indexWhere((e) => e.id == id);
+    final index = _colaMemoria.indexWhere((e) => e.id == id && (userId == null || e.userId == userId));
     if (index != -1) {
       final el = _colaMemoria[index];
       el.estado = nuevoEstado;
       if (error != null) {
         el.mensajeError = error;
       }
-      el.reintentos += 1;
+      if (nuevoEstado == 'SINCRONIZANDO') el.reintentos += 1;
       await _guardarDisco(userId ?? el.userId);
       notifyListeners();
     }
@@ -128,7 +100,7 @@ class ColaSincronizacionService extends ChangeNotifier {
 
   /// Remueve un elemento de la cola (cuando finalizó exitosamente o se descartó)
   Future<void> remover(String id, {String? userId}) async {
-    final index = _colaMemoria.indexWhere((e) => e.id == id);
+    final index = _colaMemoria.indexWhere((e) => e.id == id && (userId == null || e.userId == userId));
     if (index != -1) {
       final el = _colaMemoria.removeAt(index);
       await _guardarDisco(userId ?? el.userId);
@@ -144,7 +116,9 @@ class ColaSincronizacionService extends ChangeNotifier {
   /// Limpia la cola del usuario actual al cerrar sesión
   Future<void> limpiarColaUsuario(String userId) async {
     try {
-      _colaMemoria.clear();
+      if (_loadedUserId == userId) { _loadVersion++; _loadedUserId = null; }
+      _colaMemoria.removeWhere((e) => e.userId == userId);
+      await _storage.delete(key: _secureKey(userId));
       final file = await _getFile(userId);
       if (await file.exists()) {
         await file.delete();

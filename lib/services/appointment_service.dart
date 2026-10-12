@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../models/appointment_model.dart';
 import '../modo_offline/cola_sincronizacion_service.dart';
@@ -91,6 +92,8 @@ class AppointmentService extends ChangeNotifier {
 
     return null;
   }
+
+  void reset() { _appointments = []; _nutritionists = []; _errorMessage = null; _isLoading = false; notifyListeners(); }
 
   Future<void> fetchAppointments({String? status}) async {
     _isLoading = true;
@@ -198,6 +201,8 @@ class AppointmentService extends ChangeNotifier {
       if (tenantId != null && tenantId.isNotEmpty) 'tenant_id': tenantId,
     };
 
+    final operationId = 'offline_appt_${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}';
+    final operationUserId = effectiveUserId;
     final bool estaOffline = conectividadService != null && !conectividadService!.estaConectado;
 
     if (estaOffline) {
@@ -206,11 +211,13 @@ class AppointmentService extends ChangeNotifier {
         nutritionistName: nutritionistName,
         scheduledAt: scheduledAt,
         body: body,
+        operationId: operationId,
+        operationUserId: operationUserId,
       );
     }
 
     try {
-      final response = await _apiService.post('/appointments', body: body);
+      final response = await _apiService.post('/appointments', body: body, idempotencyKey: operationId);
       if (response != null && response is Map<String, dynamic>) {
         final newAppt = AppointmentModel.fromJson(response);
         _appointments.insert(0, newAppt);
@@ -250,6 +257,8 @@ class AppointmentService extends ChangeNotifier {
           nutritionistName: nutritionistName,
           scheduledAt: scheduledAt,
           body: body,
+          operationId: operationId,
+          operationUserId: operationUserId,
         );
       }
 
@@ -265,8 +274,16 @@ class AppointmentService extends ChangeNotifier {
     String? nutritionistName,
     required DateTime scheduledAt,
     required Map<String, dynamic> body,
+    required String operationId,
+    required String? operationUserId,
   }) async {
-    final offlineId = 'offline_appt_${DateTime.now().millisecondsSinceEpoch}';
+    if (operationUserId == null || effectiveUserId != operationUserId || colaService == null) {
+      _isLoading = false;
+      _errorMessage = 'Inicia sesión para guardar una cita pendiente.';
+      notifyListeners();
+      return false;
+    }
+    final offlineId = operationId;
     final nombreEspecialista = nutritionistName ?? 'Especialista Nutricional';
     final userVal = effectiveUserId ?? '';
 

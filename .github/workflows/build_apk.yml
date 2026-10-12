@@ -3,6 +3,7 @@ name: Build Android APK
 on:
   push:
     branches: [ main, dylandeam/dev ]
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -28,12 +29,22 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK Release
-        run: flutter build apk --release --no-tree-shake-icons
+      - name: Analyze and test
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Validate API URL
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: test -n "$API_BASE_URL" && [[ "$API_BASE_URL" == https://* ]]
+
+      - name: Build APK for QA
+        run: flutter build apk --debug --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-nutrisalud-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: app-nutrisalud-qa
+          path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 30
