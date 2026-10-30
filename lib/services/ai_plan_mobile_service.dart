@@ -61,6 +61,13 @@ class AIPlanMobileService extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  void reset() {
+    _activePlan = null;
+    _weeklyMenu = [];
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   Future<void> fetchMyPlan() async {
     _isLoading = true;
     _errorMessage = null;
@@ -68,9 +75,7 @@ class AIPlanMobileService extends ChangeNotifier {
 
     try {
       final response = await _apiService.get('/plans/my-plan');
-      if (response != null && response is Map<String, dynamic>) {
-        _activePlan = response;
-      }
+      _activePlan = response is Map<String, dynamic> ? response : null;
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception:', '').trim();
     } finally {

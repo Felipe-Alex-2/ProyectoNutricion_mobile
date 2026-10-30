@@ -1,6 +1,6 @@
 class ApiConfig {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000/api/v1',
+    defaultValue: 'https://proyectonutricionbackend-production-8308.up.railway.app/api/v1',
   );
 }
