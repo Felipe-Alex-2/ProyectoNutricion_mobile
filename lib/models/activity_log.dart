@@ -6,7 +6,6 @@ class ActivityLog {
   final String action;
   final String description;
   final String category;
-  final String? ipAddress;
   final DateTime createdAt;
 
   ActivityLog({
@@ -17,7 +16,6 @@ class ActivityLog {
     required this.action,
     required this.description,
     required this.category,
-    this.ipAddress,
     required this.createdAt,
   });
 
@@ -30,7 +28,6 @@ class ActivityLog {
       action: json['action'] as String? ?? 'GENERAL',
       description: json['description'] as String? ?? '',
       category: json['category'] as String? ?? 'SISTEMA',
-      ipAddress: json['ip_address'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -46,7 +43,6 @@ class ActivityLog {
       'action': action,
       'description': description,
       'category': category,
-      'ip_address': ipAddress,
       'created_at': createdAt.toIso8601String(),
     };
   }

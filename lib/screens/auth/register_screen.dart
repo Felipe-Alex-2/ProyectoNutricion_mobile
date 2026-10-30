@@ -25,7 +25,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   List<Branch> _branches = [];
   Branch? _selectedBranch;
   bool _isLoadingBranches = true;
-  bool _isBranchAccordionOpen = false;
+  List<Branch> _companyBranches = [];
+  Branch? _selectedCompanyBranch;
+  bool _loadingCompanyBranches = false;
   String? _branchError;
 
   @override
@@ -44,6 +46,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _selectedBranch = branches.first;
         }
       });
+      if (branches.length == 1) await _loadCompanyBranches(branches.first);
     }
   }
 
@@ -59,10 +62,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedBranch == null && _branches.isNotEmpty) {
+    if (_selectedBranch == null || _selectedCompanyBranch == null) {
       setState(() {
-        _branchError = 'Por favor selecciona la sucursal de tu atención';
-        _isBranchAccordionOpen = true;
+        _branchError = 'Selecciona tu empresa y sucursal de atención';
       });
       return;
     }
@@ -77,6 +79,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _passwordController.text,
       _nameController.text,
       tenantId: _selectedBranch?.id,
+      branchId: _selectedCompanyBranch?.id,
     );
 
     if (!mounted) return;
@@ -94,294 +97,74 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  Future<void> _loadCompanyBranches(Branch company) async {
+    setState(() {
+      _selectedBranch = company;
+      _selectedCompanyBranch = null;
+      _companyBranches = [];
+      _loadingCompanyBranches = true;
+      _branchError = null;
+    });
+    try {
+      final rows = await context.read<AuthService>().fetchCompanyBranches(
+        company.id,
+      );
+      if (!mounted || _selectedBranch?.id != company.id) return;
+      setState(() {
+        _companyBranches = rows;
+        _loadingCompanyBranches = false;
+        if (rows.length == 1) _selectedCompanyBranch = rows.first;
+      });
+    } catch (_) {
+      if (mounted && _selectedBranch?.id == company.id) {
+        setState(() {
+          _loadingCompanyBranches = false;
+          _branchError = 'No se pudieron cargar las sucursales. Selecciona la empresa de nuevo.';
+        });
+      }
+    }
+  }
+
   Widget _buildBranchAccordion(bool isDark) {
-    final primaryColor = AppTheme.primaryGreen;
-    final borderColor = _branchError != null
-        ? Colors.redAccent
-        : (_isBranchAccordionOpen
-              ? primaryColor
-              : Colors.grey.withValues(alpha: 0.3));
-
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E2922) : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: borderColor,
-              width: _isBranchAccordionOpen || _branchError != null ? 1.5 : 1.0,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Encabezado de acordeon
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    _isBranchAccordionOpen = !_isBranchAccordionOpen;
-                  });
-                },
-                borderRadius: BorderRadius.circular(14),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: primaryColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          Icons.storefront_rounded,
-                          color: primaryColor,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Sucursal / Clínica de Atención',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF687B70),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _selectedBranch != null
-                                  ? _selectedBranch!.name
-                                  : 'Toca para elegir tu sucursal...',
-                              style: TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: _selectedBranch != null
-                                    ? FontWeight.bold
-                                    : FontWeight.w500,
-                                color: _selectedBranch != null
-                                    ? (isDark
-                                          ? Colors.white
-                                          : const Color(0xFF1B2E24))
-                                    : Colors.grey[500],
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        _isBranchAccordionOpen
-                            ? Icons.keyboard_arrow_up_rounded
-                            : Icons.keyboard_arrow_down_rounded,
-                        color: primaryColor,
-                        size: 26,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Contenido desplegable de sucursales
-              if (_isBranchAccordionOpen) ...[
-                const Divider(height: 1, thickness: 1),
-                if (_isLoadingBranches)
-                  const Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          SizedBox(width: 12),
-                          Text(
-                            'Cargando sucursales...',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF687B70),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else if (_branches.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Center(
-                      child: Text(
-                        'No hay sucursales disponibles en este momento.',
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
-                      ),
-                    ),
-                  )
-                else
-                  ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    itemCount: _branches.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 6),
-                    itemBuilder: (context, index) {
-                      final branch = _branches[index];
-                      final isSelected = _selectedBranch?.id == branch.id;
-
-                      return InkWell(
-                        onTap: () {
-                          setState(() {
-                            _selectedBranch = branch;
-                            _branchError = null;
-                            _isBranchAccordionOpen = false;
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? primaryColor.withValues(alpha: 0.12)
-                                : (isDark
-                                      ? const Color(0xFF28362D)
-                                      : const Color(0xFFF7FAF8)),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isSelected
-                                  ? primaryColor
-                                  : Colors.transparent,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isSelected
-                                    ? Icons.check_circle_rounded
-                                    : Icons.radio_button_unchecked_rounded,
-                                color: isSelected
-                                    ? primaryColor
-                                    : Colors.grey[400],
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            branch.name,
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: isSelected
-                                                  ? FontWeight.bold
-                                                  : FontWeight.w600,
-                                              color: isDark
-                                                  ? Colors.white
-                                                  : const Color(0xFF1B2E24),
-                                            ),
-                                          ),
-                                        ),
-                                        if (branch.code.isNotEmpty)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: primaryColor.withValues(
-                                                alpha: 0.15,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              branch.code,
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: primaryColor,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    if (branch.address != null &&
-                                        branch.address!.isNotEmpty) ...[
-                                      const SizedBox(height: 3),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.location_on_outlined,
-                                            size: 13,
-                                            color: Colors.grey[500],
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: Text(
-                                              branch.address!,
-                                              style: TextStyle(
-                                                fontSize: 11.5,
-                                                color: Colors.grey[600],
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ],
-          ),
+        if (_isLoadingBranches) const LinearProgressIndicator(),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedBranch?.id,
+          decoration: const InputDecoration(labelText: 'Empresa'),
+          isExpanded: true,
+          items: _branches
+              .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
+              .toList(),
+          onChanged: (id) {
+            final company = _branches.where((b) => b.id == id).firstOrNull;
+            if (company != null) _loadCompanyBranches(company);
+          },
+          validator: (v) => v == null ? 'Selecciona una empresa' : null,
         ),
-        if (_branchError != null) ...[
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.only(left: 8.0),
-            child: Text(
-              _branchError!,
-              style: const TextStyle(fontSize: 12, color: Colors.redAccent),
-            ),
+        const SizedBox(height: 16),
+        if (_loadingCompanyBranches) const LinearProgressIndicator(),
+        DropdownButtonFormField<String>(
+          key: ValueKey('${_selectedBranch?.id}-${_selectedCompanyBranch?.id}'),
+          initialValue: _selectedCompanyBranch?.id,
+          decoration: const InputDecoration(labelText: 'Sucursal'),
+          isExpanded: true,
+          items: _companyBranches
+              .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
+              .toList(),
+          onChanged: (id) => setState(
+            () => _selectedCompanyBranch = _companyBranches
+                .where((b) => b.id == id)
+                .firstOrNull,
           ),
-        ],
+          validator: (v) => v == null ? 'Selecciona una sucursal' : null,
+        ),
+        if (_branchError != null)
+          Text(
+            _branchError!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
       ],
     );
   }

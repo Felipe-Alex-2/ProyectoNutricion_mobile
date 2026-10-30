@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import '../models/activity_log.dart';
 import 'api_service.dart';
 
@@ -40,21 +41,7 @@ class ActivityLogService extends ChangeNotifier {
     required String description,
     String category = 'SISTEMA',
   }) async {
-    try {
-      final response = await _apiService.post(
-        '/activity-logs',
-        body: {
-          'action': action,
-          'description': description,
-          'category': category,
-        },
-      );
-      final newLog = ActivityLog.fromJson(response as Map<String, dynamic>);
-      _logs.insert(0, newLog);
-      notifyListeners();
-    } catch (_) {
-      // Background recording failure shouldn't crash UI
-    }
+    // The server records business mutations in the authenticated transaction.
   }
 
   Future<void> clearLogsOnServer() async {

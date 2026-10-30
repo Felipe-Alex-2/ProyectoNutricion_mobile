@@ -125,11 +125,18 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  Future<List<Branch>> fetchCompanyBranches(String tenantId) async {
+    final response = await _apiService.get('/branches/public?tenant_id=${Uri.encodeQueryComponent(tenantId)}', includeAuth: false, usarCache: false);
+    if(response is! List) return [];
+    return response.map((row)=>Branch.fromJson(row as Map<String,dynamic>)).where((b)=>b.isActive).toList();
+  }
+
   Future<bool> register(
     String email,
     String password,
     String fullName, {
     String? tenantId,
+    String? branchId,
   }) async {
     _status = AuthStatus.authenticating;
     _errorMessage = null;
@@ -145,6 +152,7 @@ class AuthService extends ChangeNotifier {
       if (tenantId != null && tenantId.isNotEmpty) {
         body['tenant_id'] = tenantId;
       }
+      if(branchId != null && branchId.isNotEmpty) body['branch_id'] = branchId;
 
       await _apiService.post(
         '/auth/register',

@@ -56,10 +56,6 @@ class _HomeScreenState extends State<HomeScreen> {
       context.read<SubscriptionService>().fetchCurrentSubscription(
         userId: currentUserId,
       );
-      context.read<ActivityLogService>().recordLog(
-        action: 'INICIO_SESION',
-        description: 'Inicio de sesión en aplicación móvil',
-      );
     });
   }
 
@@ -371,7 +367,7 @@ class _HomeScreenState extends State<HomeScreen> {
         appointments.appointments
             .where(
               (a) =>
-                  a.status != 'CANCELLED' &&
+                  a.status != 'CANCELLED' && a.status != 'COMPLETED' &&
                   !a.isConflictError &&
                   a.scheduledAt.isAfter(DateTime.now()),
             )
@@ -887,7 +883,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final now = DateTime.now();
     final appointments =
         service.appointments.where((a) {
-          final past = a.scheduledAt.isBefore(now) || a.status == 'CANCELLED';
+          final past = a.scheduledAt.isBefore(now) || a.status == 'CANCELLED' || a.status == 'COMPLETED';
           return _showPastAppointments ? past : !past;
         }).toList()..sort(
           (a, b) => _showPastAppointments
@@ -980,6 +976,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ? 'Pendiente · sin conexión'
                           : appointment.status == 'CONFIRMED'
                           ? 'Confirmada'
+                          : appointment.status == 'COMPLETED'
+                          ? 'Atendida'
                           : appointment.status == 'CANCELLED'
                           ? 'Cancelada'
                           : 'Pendiente de confirmación',
