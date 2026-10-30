@@ -2,11 +2,11 @@
 
 Flutter 3.47.2, `flutter pub get`, `flutter analyze`, `flutter test`.
 
-Emulador Android: `flutter run` utiliza http://10.0.2.2:8000/api/v1. Dispositivo físico: `flutter run --dart-define=API_BASE_URL=http://IP_LOCAL:8000/api/v1`.
+`flutter run` utiliza por defecto https://proyectonutricionbackend-production-8308.up.railway.app/api/v1, tanto en emulador como en dispositivo físico. Para desarrollo local en emulador Android: `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api/v1`. Dispositivo físico con backend local: `flutter run --dart-define=API_BASE_URL=http://IP_LOCAL:8000/api/v1`.
 
-Producción: `flutter build apk --release --dart-define=API_BASE_URL=https://TU_BACKEND/api/v1`. Release bloquea HTTP sin cifrar y ya no se firma con la llave debug. Completa android/key.properties desde android/key.properties.example y utiliza tu keystore privado. No subirlo a Git.
+Producción: `flutter build apk --release` utiliza el backend de Railway por defecto. Se puede cambiar con `--dart-define=API_BASE_URL=https://TU_BACKEND/api/v1`. Release bloquea HTTP sin cifrar y ya no se firma con la llave debug. Completa android/key.properties desde android/key.properties.example y utiliza tu keystore privado. No subirlo a Git.
 
-CI ejecuta análisis y pruebas y produce APK debug para QA. Configura la variable de repositorio API_BASE_URL con una URL HTTPS. No es un APK firmado para publicar en una tienda.
+CI ejecuta análisis y pruebas y produce APK debug para QA usando Railway por defecto. La variable de repositorio API_BASE_URL permite elegir otra URL HTTPS si está configurada. No es un APK firmado para publicar en una tienda.
 
 PayPal se gestiona exclusivamente mediante backend. Rota la credencial Sandbox expuesta en versiones anteriores: retirarla del archivo actual no la elimina de APKs ni del historial Git. Se requieren las nuevas rutas del backend antes de distribuir este cliente.
 

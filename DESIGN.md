@@ -35,7 +35,7 @@ Las pruebas de rediseño navegan por las cinco secciones, enlaces de notificacio
 
 Para capturas locales, ejecutar `flutter test --no-pub test/mobile_redesign_test.dart --dart-define=UI_CAPTURE_DIR=RUTA_ABSOLUTA`. Sin esta opción las pruebas no guardan imágenes. Las capturas muestran datos ficticios y el render de Flutter en pruebas, no una sesión en un dispositivo físico.
 
-El APK debug utiliza por defecto `http://10.0.2.2:8000/api/v1` (backend local del emulador). Para otro entorno: `flutter build apk --debug --dart-define=API_BASE_URL=https://TU_BACKEND/api/v1`. No se cambió la URL de producción ni se desplegó esta entrega. La distribución release y las migraciones del backend siguen los pasos de `DEVELOPMENT.md`.
+El APK utiliza por defecto `https://proyectonutricionbackend-production-8308.up.railway.app/api/v1`. Para otro entorno: `flutter build apk --debug --dart-define=API_BASE_URL=https://TU_BACKEND/api/v1`. La distribución release y las migraciones del backend siguen los pasos de `DEVELOPMENT.md`.
 
 ## Imagen de bienvenida
 
