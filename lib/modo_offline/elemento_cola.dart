@@ -10,6 +10,7 @@ class ElementoCola {
   int reintentos;
   String estado; // PENDIENTE, SINCRONIZANDO, ERROR_CONFLICTO, COMPLETADO
   String? mensajeError;
+  DateTime? proximoIntento;
   final Map<String, dynamic>? metadata;
 
   ElementoCola({
@@ -24,6 +25,7 @@ class ElementoCola {
     this.reintentos = 0,
     this.estado = 'PENDIENTE',
     this.mensajeError,
+    this.proximoIntento,
     this.metadata,
   });
 
@@ -31,7 +33,10 @@ class ElementoCola {
   bool get esFichaMedica => tipoAccion == 'ACTUALIZAR_FICHA_MEDICA';
   bool get tieneErrorConflicto => estado == 'ERROR_CONFLICTO';
   bool get estaPendiente => estado == 'PENDIENTE';
-  bool get esSincronizable => reintentos < 5 && (estado == 'PENDIENTE' || estado == 'SINCRONIZANDO');
+  bool get esSincronizable =>
+      reintentos < 5 &&
+      (estado == 'PENDIENTE' || estado == 'SINCRONIZANDO') &&
+      (proximoIntento == null || !DateTime.now().isBefore(proximoIntento!));
 
   factory ElementoCola.fromJson(Map<String, dynamic> json) {
     return ElementoCola(
@@ -41,11 +46,15 @@ class ElementoCola {
       endpoint: json['endpoint'] as String,
       cuerpo: json['cuerpo'] as Map<String, dynamic>?,
       tipoAccion: json['tipo_accion'] as String,
-      descripcionHumana: json['descripcion_humana'] as String? ?? 'Acción offline',
+      descripcionHumana:
+          json['descripcion_humana'] as String? ?? 'Acción offline',
       fechaCreacion: DateTime.parse(json['fecha_creacion'] as String),
       reintentos: json['reintentos'] as int? ?? 0,
       estado: json['estado'] as String? ?? 'PENDIENTE',
       mensajeError: json['mensaje_error'] as String?,
+      proximoIntento: DateTime.tryParse(
+        json['proximo_intento'] as String? ?? '',
+      ),
       metadata: json['metadata'] as Map<String, dynamic>?,
     );
   }
@@ -63,6 +72,7 @@ class ElementoCola {
       'reintentos': reintentos,
       'estado': estado,
       'mensaje_error': mensajeError,
+      'proximo_intento': proximoIntento?.toIso8601String(),
       'metadata': metadata,
     };
   }

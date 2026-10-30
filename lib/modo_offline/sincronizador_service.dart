@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
 import '../services/api_service.dart';
 import 'conectividad_service.dart';
 import 'cola_sincronizacion_service.dart';
@@ -22,6 +24,7 @@ class SincronizadorService extends ChangeNotifier {
 
   VoidCallback? onCitasActualizadas;
   VoidCallback? onFichaActualizada;
+  VoidCallback? onAlimentacionActualizada;
 
   SincronizadorService({
     required this.conectividadService,
@@ -36,7 +39,9 @@ class SincronizadorService extends ChangeNotifier {
 
     // 3. Temporizador periodico de auto-reintento cada 10 segundos si hay pendientes y conexion
     _timerReintento = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (conectividadService.estaConectado && colaService.tienePendientes && !_estaSincronizando) {
+      if (conectividadService.estaConectado &&
+          colaService.tienePendientes &&
+          !_estaSincronizando) {
         sincronizarCola(userId: apiService.currentUserId);
       }
     });
@@ -49,7 +54,9 @@ class SincronizadorService extends ChangeNotifier {
   }
 
   void _alCambiarCola() {
-    if (conectividadService.estaConectado && colaService.tienePendientes && !_estaSincronizando) {
+    if (conectividadService.estaConectado &&
+        colaService.tienePendientes &&
+        !_estaSincronizando) {
       Future.microtask(() => sincronizarCola(userId: apiService.currentUserId));
     }
   }
@@ -58,7 +65,9 @@ class SincronizadorService extends ChangeNotifier {
   Future<void> sincronizarCola({String? userId}) async {
     if (_estaSincronizando || !conectividadService.estaConectado) return;
 
-    final targetUserId = (userId != null && userId.isNotEmpty) ? userId : apiService.currentUserId;
+    final targetUserId = (userId != null && userId.isNotEmpty)
+        ? userId
+        : apiService.currentUserId;
     if (targetUserId == null || targetUserId.isEmpty) return;
     if (colaService.elementos.isEmpty) {
       await colaService.cargarCola(userId: targetUserId);
@@ -76,16 +85,25 @@ class SincronizadorService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      pendientes.sort((a, b) => a.fechaCreacion.compareTo(b.fechaCreacion)); // Orden FIFO estricto
+      pendientes.sort(
+        (a, b) => a.fechaCreacion.compareTo(b.fechaCreacion),
+      ); // Orden FIFO estricto
 
       bool huboCambiosEnCitas = false;
       bool huboCambiosEnFicha = false;
 
       for (final elemento in pendientes) {
-        if (!conectividadService.estaConectado || apiService.currentUserId != targetUserId) break;
+        if (!conectividadService.estaConectado ||
+            apiService.currentUserId != targetUserId) {
+          break;
+        }
 
         final elUserId = targetUserId;
-        await colaService.actualizarEstado(elemento.id, 'SINCRONIZANDO', userId: elUserId);
+        await colaService.actualizarEstado(
+          elemento.id,
+          'SINCRONIZANDO',
+          userId: elUserId,
+        );
 
         try {
           if (elemento.metodo == 'POST') {
@@ -95,40 +113,46 @@ class SincronizadorService extends ChangeNotifier {
               idempotencyKey: elemento.id,
             );
 
-            if (elemento.esCita) {
+            if (elemento.tipoAccion == 'REGISTRAR_ALIMENTACION') {
+              _ultimoMensajeExito = 'Registro de alimentación sincronizado.';
+              onAlimentacionActualizada?.call();
+            } else if (elemento.esCita) {
               huboCambiosEnCitas = true;
-              _ultimoMensajeExito = 'Cita medica sincronizada exitosamente con tu especialista.';
-            } else if (elemento.esFichaMedica || elemento.tipoAccion == 'ACTUALIZAR_FICHA_MEDICA') {
+              _ultimoMensajeExito =
+                  'Cita medica sincronizada exitosamente con tu especialista.';
+            } else if (elemento.esFichaMedica ||
+                elemento.tipoAccion == 'ACTUALIZAR_FICHA_MEDICA') {
               huboCambiosEnFicha = true;
-              _ultimoMensajeExito = 'Ficha de salud sincronizada exitosamente con el servidor.';
+              _ultimoMensajeExito =
+                  'Ficha de salud sincronizada exitosamente con el servidor.';
             }
 
             // Removido con exito de la cola
             await colaService.remover(elemento.id, userId: elUserId);
           } else if (elemento.metodo == 'PUT') {
-            await apiService.put(
-              elemento.endpoint,
-              body: elemento.cuerpo,
-            );
+            await apiService.put(elemento.endpoint, body: elemento.cuerpo);
             await colaService.remover(elemento.id, userId: elUserId);
           } else if (elemento.metodo == 'PATCH') {
-            await apiService.patch(
-              elemento.endpoint,
-              body: elemento.cuerpo,
-            );
+            await apiService.patch(elemento.endpoint, body: elemento.cuerpo);
             await colaService.remover(elemento.id, userId: elUserId);
           } else if (elemento.metodo == 'DELETE') {
-            await apiService.delete(
-              elemento.endpoint,
-              body: elemento.cuerpo,
-            );
+            await apiService.delete(elemento.endpoint, body: elemento.cuerpo);
             await colaService.remover(elemento.id, userId: elUserId);
           }
         } catch (e) {
           final errorStr = e.toString().toLowerCase();
 
-          if (e is ApiException && e.statusCode >= 400 && e.statusCode < 500 && e.statusCode != 409 && e.statusCode != 429) {
-            await colaService.actualizarEstado(elemento.id, 'ERROR_PERMANENTE', error: e.message, userId: elUserId);
+          if (e is ApiException &&
+              e.statusCode >= 400 &&
+              e.statusCode < 500 &&
+              e.statusCode != 409 &&
+              e.statusCode != 429) {
+            await colaService.actualizarEstado(
+              elemento.id,
+              e.statusCode == 401 ? 'PENDIENTE' : 'ERROR_PERMANENTE',
+              error: e.message,
+              userId: elUserId,
+            );
             if (e.statusCode == 401) break;
             continue;
           }
@@ -136,8 +160,10 @@ class SincronizadorService extends ChangeNotifier {
           if (errorStr.contains('ya tiene una cita') ||
               errorStr.contains('conflicto') ||
               errorStr.contains('solapamiento') ||
-              (e is ApiException && (e.statusCode == 400 || e.statusCode == 409))) {
-            String mensajeAmigable = 'No se pudo reservar la cita: El especialista ya tiene una cita agendada en ese horario. Por favor selecciona otro horario.';
+              (e is ApiException &&
+                  (e.statusCode == 400 || e.statusCode == 409))) {
+            String mensajeAmigable =
+                'No se pudo reservar la cita: El especialista ya tiene una cita agendada en ese horario. Por favor selecciona otro horario.';
             if (e is ApiException && e.message.isNotEmpty) {
               mensajeAmigable = e.message;
             }
@@ -159,7 +185,11 @@ class SincronizadorService extends ChangeNotifier {
               errorStr.contains('timeout') ||
               (e is ApiException && e.statusCode == 0)) {
             // Error de red transitorio: restaurar a PENDIENTE para que reintente en el proximo ciclo
-            await colaService.actualizarEstado(elemento.id, 'PENDIENTE', userId: elUserId);
+            await colaService.actualizarEstado(
+              elemento.id,
+              'PENDIENTE',
+              userId: elUserId,
+            );
             break;
           } else {
             // Error general: restaurar a PENDIENTE para continuar intentando

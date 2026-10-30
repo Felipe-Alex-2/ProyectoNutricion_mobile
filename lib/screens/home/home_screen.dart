@@ -23,6 +23,7 @@ import '../subscriptions/subscriptions_screen.dart';
 import '../chat/carlitos_chat_screen.dart';
 import '../../modo_offline/widgets/banner_sin_conexion.dart';
 import '../../modo_offline/conectividad_service.dart';
+import '../food/nutrition_diary_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -175,6 +176,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.push(context, MaterialPageRoute<void>(
+          builder: (_) => const NutritionDiaryScreen())),
+        icon: const Icon(Icons.restaurant_menu), label: const Text('Mi nutrición')),
       backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
       body: SafeArea(
         child: Stack(
@@ -1781,6 +1786,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(context, MaterialPageRoute<void>(
+                builder: (_) => const NutritionDiaryScreen())),
+              icon: const Icon(Icons.restaurant_menu),
+              label: const Text('Ver plan asignado y diario de alimentación')),
             const SizedBox(height: 14),
 
             // Filtros de Categoría
