@@ -266,9 +266,10 @@ class AuthService extends ChangeNotifier {
       await _apiService.post('/auth/logout', body: {'refresh_token': refresh});
     } catch (_) {}
 
+    _apiService.currentUserId = null;
     if (uid != null) {
       await cacheService?.limpiarCacheUsuario(uid);
-      await colaService?.limpiarColaUsuario(uid);
+      colaService?.soltarCuenta();
       await _storageService.clearLocalSubscription(userId: uid);
     }
     await _storageService.clearTokens();

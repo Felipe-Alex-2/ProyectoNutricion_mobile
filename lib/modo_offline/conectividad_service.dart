@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
+
 import '../config/api_config.dart';
 
 class ConectividadService extends ChangeNotifier with WidgetsBindingObserver {
@@ -21,9 +23,9 @@ class ConectividadService extends ChangeNotifier with WidgetsBindingObserver {
   bool get estaVerificando => _estaVerificando;
   bool get estaEnPrimerPlano => _estaEnPrimerPlano;
 
-  ConectividadService() {
+  ConectividadService({bool iniciarMonitoreo = true}) {
     WidgetsBinding.instance.addObserver(this);
-    _iniciarMonitoreo();
+    if (iniciarMonitoreo) _iniciarMonitoreo();
   }
 
   void _iniciarMonitoreo() {
@@ -71,7 +73,9 @@ class ConectividadService extends ChangeNotifier with WidgetsBindingObserver {
     _timerInactividadFueraApp?.cancel();
     _timerInactividadFueraApp = Timer(duracionInactividadFueraApp, () {
       if (!_estaEnPrimerPlano) {
-        debugPrint('[ConectividadService] 1 minuto de inactividad fuera de la app. Activando modo offline.');
+        debugPrint(
+          '[ConectividadService] 1 minuto de inactividad fuera de la app. Activando modo offline.',
+        );
         _actualizarEstado(false);
       }
     });
@@ -95,15 +99,18 @@ class ConectividadService extends ChangeNotifier with WidgetsBindingObserver {
       final host = Uri.parse(ApiConfig.baseUrl).host;
       if (host.isNotEmpty && host != 'localhost' && host != '10.0.2.2') {
         try {
-          final result = await InternetAddress.lookup(host).timeout(const Duration(seconds: 4));
+          final result = await InternetAddress.lookup(host)
+              .timeout(const Duration(seconds: 4));
           conectado = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
         } catch (_) {
           // Si el host especifico de Railway se demoro, probar con DNS publico
-          final fallback = await InternetAddress.lookup('one.one.one.one').timeout(const Duration(seconds: 3));
+          final fallback = await InternetAddress.lookup('one.one.one.one')
+              .timeout(const Duration(seconds: 3));
           conectado = fallback.isNotEmpty && fallback[0].rawAddress.isNotEmpty;
         }
       } else {
-        final result = await InternetAddress.lookup('one.one.one.one').timeout(const Duration(seconds: 3));
+        final result = await InternetAddress.lookup('one.one.one.one')
+            .timeout(const Duration(seconds: 3));
         conectado = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
       }
     } catch (_) {

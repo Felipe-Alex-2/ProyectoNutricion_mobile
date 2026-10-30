@@ -101,11 +101,16 @@ Future<void> main() async {
     anamnesisService.reset();
     notificationService.reset();
     subscriptionService.reset();
+    aiPlanMobileService.reset();
+    foodVisionService.clearLastAnalysis();
     if (userId != null) {
       colaService.cargarCola(userId: userId).then((_) {
         if (apiService.currentUserId != userId) return;
         appointmentService.fetchAppointments();
         anamnesisService.fetchMyAnamnesis();
+        // Download account-scoped nutrition data for the next offline session.
+        apiService.get('/plans/my-plan').catchError((_) => null);
+        apiService.get('/food/history').catchError((_) => null);
       });
     }
   });
