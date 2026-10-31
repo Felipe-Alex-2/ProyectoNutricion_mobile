@@ -105,7 +105,7 @@ class ApiService {
       if (binary && response.statusCode >= 200 && response.statusCode < 300) {
         return response.bodyBytes;
       }
-      return _processResponse(response);
+      return _processResponse(response, authenticated: auth);
     } on ApiException {
       rethrow;
     } on TimeoutException {
@@ -248,7 +248,10 @@ class ApiService {
     }, includeAuth);
   }
 
-  dynamic _processResponse(http.Response response) {
+  dynamic _processResponse(
+    http.Response response, {
+    bool authenticated = true,
+  }) {
     dynamic data;
     try {
       data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -264,7 +267,7 @@ class ApiService {
         message = detail.first['msg']?.toString() ?? message;
       }
     }
-    if (response.statusCode == 401) {
+    if (authenticated && response.statusCode == 401) {
       message = 'Sesión expirada. Inicia sesión nuevamente.';
     }
     throw ApiException(message, statusCode: response.statusCode);

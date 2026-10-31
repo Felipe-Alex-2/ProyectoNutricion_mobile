@@ -15,6 +15,30 @@ void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
   test(
+    'Login failures preserve the server error instead of session expired',
+    () async {
+      final api = ApiService(
+        StorageService(),
+        client: MockClient(
+          (_) async =>
+              http.Response('{"detail":"Invalid email or password"}', 401),
+        ),
+      );
+      addTearDown(api.dispose);
+      await expectLater(
+        api.post('/auth/login', includeAuth: false),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.message,
+            'message',
+            'Invalid email or password',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
     'Concurrent unauthorized requests share one refresh and retry',
     () async {
       final storage = StorageService();

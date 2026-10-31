@@ -29,6 +29,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Branch? _selectedCompanyBranch;
   bool _loadingCompanyBranches = false;
   String? _branchError;
+  bool _companyBranchesLoaded = false;
 
   @override
   void initState() {
@@ -37,16 +38,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _loadBranches() async {
-    final branches = await context.read<AuthService>().fetchPublicBranches();
-    if (mounted) {
+    setState(() {
+      _isLoadingBranches = true;
+      _branchError = null;
+    });
+    try {
+      final branches = await context.read<AuthService>().fetchPublicBranches();
+      if (!mounted) return;
       setState(() {
         _branches = branches;
         _isLoadingBranches = false;
-        if (branches.length == 1) {
-          _selectedBranch = branches.first;
+        if (branches.length == 1) _selectedBranch = branches.first;
+        if (branches.isEmpty) {
+          _branchError = 'No hay empresas disponibles para el registro.';
         }
       });
       if (branches.length == 1) await _loadCompanyBranches(branches.first);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingBranches = false;
+        _branchError = 'No se pudieron cargar las empresas. Revisa tu conexión e inténtalo de nuevo.';
+      });
     }
   }
 
@@ -62,7 +75,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedBranch == null || _selectedCompanyBranch == null) {
+    if (_selectedBranch == null ||
+        !_companyBranchesLoaded ||
+        (_companyBranches.isNotEmpty && _selectedCompanyBranch == null)) {
       setState(() {
         _branchError = 'Selecciona tu empresa y sucursal de atención';
       });
@@ -103,6 +118,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _selectedCompanyBranch = null;
       _companyBranches = [];
       _loadingCompanyBranches = true;
+      _companyBranchesLoaded = false;
       _branchError = null;
     });
     try {
@@ -112,6 +128,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted || _selectedBranch?.id != company.id) return;
       setState(() {
         _companyBranches = rows;
+        _companyBranchesLoaded = true;
         _loadingCompanyBranches = false;
         if (rows.length == 1) _selectedCompanyBranch = rows.first;
       });
@@ -137,34 +154,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
           items: _branches
               .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
               .toList(),
-          onChanged: (id) {
-            final company = _branches.where((b) => b.id == id).firstOrNull;
-            if (company != null) _loadCompanyBranches(company);
-          },
+          onChanged: _loadingCompanyBranches
+              ? null
+              : (id) {
+                  final company = _branches
+                      .where((b) => b.id == id)
+                      .firstOrNull;
+                  if (company != null) _loadCompanyBranches(company);
+                },
           validator: (v) => v == null ? 'Selecciona una empresa' : null,
         ),
         const SizedBox(height: 16),
         if (_loadingCompanyBranches) const LinearProgressIndicator(),
-        DropdownButtonFormField<String>(
-          key: ValueKey('${_selectedBranch?.id}-${_selectedCompanyBranch?.id}'),
-          initialValue: _selectedCompanyBranch?.id,
-          decoration: const InputDecoration(labelText: 'Sucursal'),
-          isExpanded: true,
-          items: _companyBranches
-              .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
-              .toList(),
-          onChanged: (id) => setState(
-            () => _selectedCompanyBranch = _companyBranches
-                .where((b) => b.id == id)
-                .firstOrNull,
+        if (_companyBranches.isNotEmpty)
+          DropdownButtonFormField<String>(
+            key: ValueKey(
+              '${_selectedBranch?.id}-${_selectedCompanyBranch?.id}',
+            ),
+            initialValue: _selectedCompanyBranch?.id,
+            decoration: const InputDecoration(labelText: 'Sucursal'),
+            isExpanded: true,
+            items: _companyBranches
+                .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
+                .toList(),
+            onChanged: (id) => setState(
+              () => _selectedCompanyBranch = _companyBranches
+                  .where((b) => b.id == id)
+                  .firstOrNull,
+            ),
+            validator: (v) => v == null ? 'Selecciona una sucursal' : null,
           ),
-          validator: (v) => v == null ? 'Selecciona una sucursal' : null,
-        ),
-        if (_branchError != null)
-          Text(
-            _branchError!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+        if (_companyBranchesLoaded && _companyBranches.isEmpty)
+          const Text(
+            'Esta empresa aún no tiene sucursales. Puedes crear tu cuenta con la empresa seleccionada.',
           ),
+        if (_branchError != null) ...[
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              _branchError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+          if (!_loadingCompanyBranches && !_isLoadingBranches)
+            TextButton(
+              onPressed: () => _selectedBranch == null
+                  ? _loadBranches()
+                  : _loadCompanyBranches(_selectedBranch!),
+              child: const Text('Reintentar'),
+            ),
+        ],
       ],
     );
   }
@@ -196,7 +235,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     // Full Name Field
                     TextFormField(
                       controller: _nameController,
-                      maxLength: 250,
+                      maxLength: 100,
                       decoration: const InputDecoration(
                         labelText: 'Nombre Completo',
                         hintText: 'Alex Felipe',
@@ -209,8 +248,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         if (value.trim().length < 2) {
                           return 'Mínimo 2 caracteres';
                         }
-                        if (value.trim().length > 250) {
-                          return 'Máximo 250 caracteres';
+                        if (value.trim().length > 100) {
+                          return 'Máximo 100 caracteres';
                         }
                         return null;
                       },

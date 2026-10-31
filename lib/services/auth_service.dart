@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import '../models/user.dart';
 import '../models/branch_model.dart';
 import 'api_service.dart';
@@ -8,7 +9,12 @@ import '../modo_offline/cache_local_service.dart';
 import '../modo_offline/cola_sincronizacion_service.dart';
 import '../modo_offline/elemento_cola.dart';
 
-enum AuthStatus { uninitialized, authenticated, unauthenticated, authenticating }
+enum AuthStatus {
+  uninitialized,
+  authenticated,
+  unauthenticated,
+  authenticating,
+}
 
 class AuthService extends ChangeNotifier {
   final ApiService _apiService;
@@ -57,7 +63,10 @@ class AuthService extends ChangeNotifier {
         _status = AuthStatus.unauthenticated;
       } else if (e is ApiException && e.statusCode == 0) {
         // Modo offline: leer el perfil desde el almacenamiento local
-        final cached = await cacheService?.obtener('/users/me', userId: _apiService.currentUserId);
+        final cached = await cacheService?.obtener(
+          '/users/me',
+          userId: _apiService.currentUserId,
+        );
         if (cached != null) {
           _currentUser = User.fromJson(cached);
           _apiService.currentUserId = _currentUser?.id;
@@ -97,7 +106,11 @@ class AuthService extends ChangeNotifier {
         refreshToken: refreshToken,
       );
 
-      await cacheService?.guardar('/users/me', response['user'], userId: _currentUser?.id);
+      await cacheService?.guardar(
+        '/users/me',
+        response['user'],
+        userId: _currentUser?.id,
+      );
 
       _status = AuthStatus.authenticated;
       notifyListeners();
@@ -111,24 +124,25 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<List<Branch>> fetchPublicBranches() async {
-    try {
-      final res = await _apiService.get('/tenants/public', includeAuth: false);
-      if (res is List) {
-        return res
-            .map((item) => Branch.fromJson(item as Map<String, dynamic>))
-            .where((b) => b.isActive)
-            .toList();
-      }
-      return [];
-    } catch (_) {
-      return [];
-    }
+    final res = await _apiService.get('/tenants/public', includeAuth: false);
+    if (res is! List) return [];
+    return res
+        .map((item) => Branch.fromJson(item as Map<String, dynamic>))
+        .where((b) => b.isActive)
+        .toList();
   }
 
   Future<List<Branch>> fetchCompanyBranches(String tenantId) async {
-    final response = await _apiService.get('/branches/public?tenant_id=${Uri.encodeQueryComponent(tenantId)}', includeAuth: false, usarCache: false);
-    if(response is! List) return [];
-    return response.map((row)=>Branch.fromJson(row as Map<String,dynamic>)).where((b)=>b.isActive).toList();
+    final response = await _apiService.get(
+      '/branches/public?tenant_id=${Uri.encodeQueryComponent(tenantId)}',
+      includeAuth: false,
+      usarCache: false,
+    );
+    if (response is! List) return [];
+    return response
+        .map((row) => Branch.fromJson(row as Map<String, dynamic>))
+        .where((b) => b.isActive)
+        .toList();
   }
 
   Future<bool> register(
@@ -152,13 +166,9 @@ class AuthService extends ChangeNotifier {
       if (tenantId != null && tenantId.isNotEmpty) {
         body['tenant_id'] = tenantId;
       }
-      if(branchId != null && branchId.isNotEmpty) body['branch_id'] = branchId;
+      if (branchId != null && branchId.isNotEmpty) body['branch_id'] = branchId;
 
-      await _apiService.post(
-        '/auth/register',
-        body: body,
-        includeAuth: false,
-      );
+      await _apiService.post('/auth/register', body: body, includeAuth: false);
 
       // Auto login after registration
       return await login(email, password);
@@ -245,10 +255,7 @@ class AuthService extends ChangeNotifier {
     try {
       await _apiService.post(
         '/auth/reset-password',
-        body: {
-          'token': token.trim(),
-          'new_password': newPassword,
-        },
+        body: {'token': token.trim(), 'new_password': newPassword},
         includeAuth: false,
       );
       return true;
