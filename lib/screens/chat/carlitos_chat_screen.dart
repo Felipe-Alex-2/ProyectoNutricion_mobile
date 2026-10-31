@@ -59,17 +59,6 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
     final text = textOverride ?? _textController.text;
     if (text.trim().isEmpty) return;
 
-    final conectividad = context.read<ConectividadService>();
-    if (!conectividad.estaConectado) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error: estás sin conexión a internet'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-
     _textController.clear();
     final service = context.read<CarlitosChatService>();
     final ok = await service.sendMessage(text);
@@ -328,26 +317,65 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
         bottom: true,
         child: Column(
           children: [
-            // Disclaimer Banner
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              color: isDark ? const Color(0xFF1E281F) : const Color(0xFFE8F5E9),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, size: 16, color: primaryGreen),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Complementa la orientación de tu nutricionista.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: primaryGreen,
-                        fontWeight: FontWeight.w500,
-                      ),
+            // Banner de estado (online vs offline local)
+            Builder(
+              builder: (ctx) {
+                final conectado = ctx.watch<ConectividadService>().estaConectado;
+                if (!conectado) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
                     ),
+                    color: Colors.amber.shade900.withValues(alpha: 0.15),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.wifi_off_rounded,
+                          size: 16,
+                          color: Colors.amber.shade800,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Modo Asistente Offline: Carlitos responderá usando el motor local de nutrición.',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: Colors.amber.shade800,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
                   ),
-                ],
-              ),
+                  color: isDark
+                      ? const Color(0xFF1E281F)
+                      : const Color(0xFFE8F5E9),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 16, color: primaryGreen),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Complementa la orientación de tu nutricionista.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: primaryGreen,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
 
             // Messages List
