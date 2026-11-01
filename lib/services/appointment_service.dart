@@ -1,5 +1,7 @@
 import 'dart:math';
+
 import 'package:flutter/foundation.dart';
+
 import '../models/appointment_model.dart';
 import '../modo_offline/cola_sincronizacion_service.dart';
 import '../modo_offline/conectividad_service.dart';
@@ -45,10 +47,15 @@ class AppointmentService extends ChangeNotifier {
         continue;
       }
 
-      final diffInMinutes = appt.scheduledAt.difference(scheduledAt).inMinutes.abs();
+      final diffInMinutes = appt.scheduledAt
+          .difference(scheduledAt)
+          .inMinutes
+          .abs();
       if (diffInMinutes < 30) {
-        final hora = '${appt.scheduledAt.hour.toString().padLeft(2, '0')}:${appt.scheduledAt.minute.toString().padLeft(2, '0')}';
-        final fecha = '${appt.scheduledAt.day.toString().padLeft(2, '0')}/${appt.scheduledAt.month.toString().padLeft(2, '0')}';
+        final hora =
+            '${appt.scheduledAt.hour.toString().padLeft(2, '0')}:${appt.scheduledAt.minute.toString().padLeft(2, '0')}';
+        final fecha =
+            '${appt.scheduledAt.day.toString().padLeft(2, '0')}/${appt.scheduledAt.month.toString().padLeft(2, '0')}';
 
         if (appt.nutritionistId == nutritionistId) {
           return 'El especialista ya tiene una cita agendada o pendiente el $fecha a las $hora. Cada consulta dura 30 minutos. Por favor selecciona otro horario.';
@@ -63,7 +70,9 @@ class AppointmentService extends ChangeNotifier {
     // 2. Verificar contra citas pendientes en la cola offline
     if (colaService != null) {
       for (final elemento in colaService!.elementos) {
-        if (!elemento.esCita || elemento.tieneErrorConflicto || elemento.estado == 'COMPLETADO') {
+        if (!elemento.esCita ||
+            elemento.tieneErrorConflicto ||
+            elemento.estado == 'COMPLETADO') {
           continue;
         }
 
@@ -72,16 +81,23 @@ class AppointmentService extends ChangeNotifier {
         if (itemScheduledStr != null) {
           final itemScheduled = DateTime.tryParse(itemScheduledStr);
           if (itemScheduled != null) {
-            final diffInMinutes = itemScheduled.difference(scheduledAt).inMinutes.abs();
+            final diffInMinutes = itemScheduled
+                .difference(scheduledAt)
+                .inMinutes
+                .abs();
             if (diffInMinutes < 30) {
-              final hora = '${itemScheduled.hour.toString().padLeft(2, '0')}:${itemScheduled.minute.toString().padLeft(2, '0')}';
-              final fecha = '${itemScheduled.day.toString().padLeft(2, '0')}/${itemScheduled.month.toString().padLeft(2, '0')}';
+              final hora =
+                  '${itemScheduled.hour.toString().padLeft(2, '0')}:${itemScheduled.minute.toString().padLeft(2, '0')}';
+              final fecha =
+                  '${itemScheduled.day.toString().padLeft(2, '0')}/${itemScheduled.month.toString().padLeft(2, '0')}';
 
               if (itemNutriId == nutritionistId) {
                 return 'Ya tienes una cita en cola offline con este especialista el $fecha a las $hora (intervalo de 30 minutos). Por favor selecciona otro horario.';
               }
 
-              if (userId != null && userId.isNotEmpty && elemento.userId == userId) {
+              if (userId != null &&
+                  userId.isNotEmpty &&
+                  elemento.userId == userId) {
                 return 'Ya tienes una cita en cola offline el $fecha a las $hora en este intervalo de 30 minutos. Por favor selecciona otro horario.';
               }
             }
@@ -93,7 +109,13 @@ class AppointmentService extends ChangeNotifier {
     return null;
   }
 
-  void reset() { _appointments = []; _nutritionists = []; _errorMessage = null; _isLoading = false; notifyListeners(); }
+  void reset() {
+    _appointments = [];
+    _nutritionists = [];
+    _errorMessage = null;
+    _isLoading = false;
+    notifyListeners();
+  }
 
   Future<void> fetchAppointments({String? status}) async {
     _isLoading = true;
@@ -109,7 +131,9 @@ class AppointmentService extends ChangeNotifier {
       final response = await _apiService.get(endpoint);
       if (response is List) {
         _appointments = response
-            .map((item) => AppointmentModel.fromJson(item as Map<String, dynamic>))
+            .map(
+              (item) => AppointmentModel.fromJson(item as Map<String, dynamic>),
+            )
             .toList();
       } else {
         _appointments = [];
@@ -130,15 +154,21 @@ class AppointmentService extends ChangeNotifier {
     final citasEnCola = colaService!.elementos.where((e) => e.esCita).toList();
     for (final item in citasEnCola) {
       final index = _appointments.indexWhere((a) => a.id == item.id);
-      final scheduledIso = item.cuerpo?['scheduled_at'] as String? ?? DateTime.now().toIso8601String();
+      final scheduledIso =
+          item.cuerpo?['scheduled_at'] as String? ??
+          DateTime.now().toIso8601String();
       final localAppt = AppointmentModel(
         id: item.id,
         patientId: item.userId.isNotEmpty ? item.userId : userVal,
         nutritionistId: item.cuerpo?['nutritionist_id'] as String? ?? '',
-        nutritionistName: item.metadata?['nutritionist_name'] as String? ?? 'Especialista Nutricional',
+        nutritionistName:
+            item.metadata?['nutritionist_name'] as String? ??
+            'Especialista Nutricional',
         scheduledAt: DateTime.parse(scheduledIso),
         reason: item.cuerpo?['reason'] as String?,
-        status: item.tieneErrorConflicto ? 'ERROR_CONFLICTO' : 'PENDIENTE_OFFLINE',
+        status: item.tieneErrorConflicto
+            ? 'ERROR_CONFLICTO'
+            : 'PENDIENTE_OFFLINE',
         cancellationReason: item.mensajeError,
         createdAt: item.fechaCreacion,
         updatedAt: item.fechaCreacion,
@@ -162,7 +192,9 @@ class AppointmentService extends ChangeNotifier {
       final response = await _apiService.get(endpoint);
       if (response is List) {
         _nutritionists = response
-            .map((item) => NutritionistItem.fromJson(item as Map<String, dynamic>))
+            .map(
+              (item) => NutritionistItem.fromJson(item as Map<String, dynamic>),
+            )
             .toList();
         notifyListeners();
       }
@@ -197,13 +229,17 @@ class AppointmentService extends ChangeNotifier {
     final body = {
       'nutritionist_id': nutritionistId,
       'scheduled_at': scheduledAt.toIso8601String(),
-      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      'reason': reason == null || reason.trim().isEmpty
+          ? 'Consulta general'
+          : 'Consulta general: ${reason.trim()}',
       if (tenantId != null && tenantId.isNotEmpty) 'tenant_id': tenantId,
     };
 
-    final operationId = 'offline_appt_${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}';
+    final operationId =
+        'offline_appt_${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}';
     final operationUserId = effectiveUserId;
-    final bool estaOffline = conectividadService != null && !conectividadService!.estaConectado;
+    final bool estaOffline =
+        conectividadService != null && !conectividadService!.estaConectado;
 
     if (estaOffline) {
       return await _encolarCitaOffline(
@@ -217,7 +253,11 @@ class AppointmentService extends ChangeNotifier {
     }
 
     try {
-      final response = await _apiService.post('/appointments', body: body, idempotencyKey: operationId);
+      final response = await _apiService.post(
+        '/appointments',
+        body: body,
+        idempotencyKey: operationId,
+      );
       if (response != null && response is Map<String, dynamic>) {
         final newAppt = AppointmentModel.fromJson(response);
         _appointments.insert(0, newAppt);
@@ -247,11 +287,11 @@ class AppointmentService extends ChangeNotifier {
       // Si es error de conectividad de red, guardar en cola offline
       if (colaService != null &&
           (errorStr.contains('conexión') ||
-           errorStr.contains('conexion') ||
-           errorStr.contains('socket') ||
-           errorStr.contains('failed host lookup') ||
-           errorStr.contains('timeout') ||
-           (e is ApiException && e.statusCode == 0))) {
+              errorStr.contains('conexion') ||
+              errorStr.contains('socket') ||
+              errorStr.contains('failed host lookup') ||
+              errorStr.contains('timeout') ||
+              (e is ApiException && e.statusCode == 0))) {
         return await _encolarCitaOffline(
           nutritionistId: nutritionistId,
           nutritionistName: nutritionistName,
@@ -277,7 +317,9 @@ class AppointmentService extends ChangeNotifier {
     required String operationId,
     required String? operationUserId,
   }) async {
-    if (operationUserId == null || effectiveUserId != operationUserId || colaService == null) {
+    if (operationUserId == null ||
+        effectiveUserId != operationUserId ||
+        colaService == null) {
       _isLoading = false;
       _errorMessage = 'Inicia sesión para guardar una cita pendiente.';
       notifyListeners();
@@ -293,12 +335,11 @@ class AppointmentService extends ChangeNotifier {
       metodo: 'POST',
       endpoint: '/appointments',
       tipoAccion: 'CREAR_CITA',
-      descripcionHumana: 'Cita con $nombreEspecialista el ${scheduledAt.day}/${scheduledAt.month} ${scheduledAt.hour.toString().padLeft(2, '0')}:${scheduledAt.minute.toString().padLeft(2, '0')}',
+      descripcionHumana:
+          'Cita con $nombreEspecialista el ${scheduledAt.day}/${scheduledAt.month} ${scheduledAt.hour.toString().padLeft(2, '0')}:${scheduledAt.minute.toString().padLeft(2, '0')}',
       cuerpo: body,
       fechaCreacion: DateTime.now(),
-      metadata: {
-        'nutritionist_name': nombreEspecialista,
-      },
+      metadata: {'nutritionist_name': nombreEspecialista},
     );
 
     if (colaService != null) {

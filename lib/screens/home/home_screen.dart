@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import '../payments/wallet_screen.dart';
+
 import 'package:url_launcher/url_launcher.dart';
 
 import '../subscriptions/subscription_receipts_section.dart';
@@ -32,7 +36,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  Timer? _appointmentTimer;
   int _currentNavIndex = 0;
   final TextEditingController _codeController = TextEditingController();
   bool _isClaiming = false;
@@ -44,6 +49,14 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _appointmentTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
+          context.read<ConectividadService>().estaConectado) {
+        context.read<AppointmentService>().fetchAppointments();
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _notificationService = context.read<NotificationService>();
@@ -62,6 +75,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _appointmentTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _notificationService?.stopPolling();
     _codeController.dispose();
     super.dispose();
@@ -177,9 +192,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.push(context, MaterialPageRoute<void>(
-          builder: (_) => const NutritionDiaryScreen())),
-        icon: const Icon(Icons.restaurant_menu), label: const Text('Mi nutrición')),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute<void>(builder: (_) => const NutritionDiaryScreen()),
+        ),
+        icon: const Icon(Icons.restaurant_menu),
+        label: const Text('Mi nutrición'),
+      ),
       backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
       body: SafeArea(
         child: Stack(
@@ -372,7 +391,8 @@ class _HomeScreenState extends State<HomeScreen> {
         appointments.appointments
             .where(
               (a) =>
-                  a.status != 'CANCELLED' && a.status != 'COMPLETED' &&
+                  a.status != 'CANCELLED' &&
+                  a.status != 'COMPLETED' &&
                   !a.isConflictError &&
                   a.scheduledAt.isAfter(DateTime.now()),
             )
@@ -888,7 +908,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final now = DateTime.now();
     final appointments =
         service.appointments.where((a) {
-          final past = a.scheduledAt.isBefore(now) || a.status == 'CANCELLED' || a.status == 'COMPLETED';
+          final past =
+              a.scheduledAt.isBefore(now) ||
+              a.status == 'CANCELLED' ||
+              a.status == 'COMPLETED';
           return _showPastAppointments ? past : !past;
         }).toList()..sort(
           (a, b) => _showPastAppointments
@@ -979,6 +1002,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ? 'Horario ocupado'
                           : appointment.isOfflinePending
                           ? 'Pendiente · sin conexión'
+                          : appointment.status == 'ACCEPTED'
+                          ? 'Aceptada · pago pendiente'
                           : appointment.status == 'CONFIRMED'
                           ? 'Confirmada'
                           : appointment.status == 'COMPLETED'
@@ -986,7 +1011,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           : appointment.status == 'CANCELLED'
                           ? 'Cancelada'
                           : 'Pendiente de confirmación',
-                      icon: Icons.event_outlined,
+                      icon: appointment.status == 'CONFIRMED'
+                          ? Icons.check_circle
+                          : Icons.event_outlined,
                     ),
                   ],
                 ),
@@ -995,6 +1022,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   appointment.nutritionistName ?? 'Tu nutricionista',
                   style: TextStyle(color: textSecondary),
                 ),
+                if (appointment.status == 'ACCEPTED') ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.payments_outlined),
+                    label: const Text('Pagar consulta general · USD 5'),
+                    onPressed: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              WalletScreen(appointmentId: appointment.id),
+                        ),
+                      );
+                      if (!mounted) return;
+                      await context
+                          .read<AppointmentService>()
+                          .fetchAppointments();
+                    },
+                  ),
+                ],
                 if (appointment.isOfflinePending) ...[
                   const SizedBox(height: 12),
                   const Text(
@@ -1552,7 +1598,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         maxLines: 2,
                         style: TextStyle(color: textPrimary, fontSize: 14),
                         decoration: InputDecoration(
-                          hintText: 'Ej: Control mensual, revisión de plan alimenticio...',
+                          hintText: 'Consulta general · cuéntanos el motivo',
                           hintStyle: TextStyle(
                             color: textSecondary.withValues(alpha: 0.6),
                             fontSize: 13,
@@ -1684,7 +1730,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ).showSnackBar(
                                         const SnackBar(
                                           content: Text(
-                                            'Cita solicitada con exito. Queda pendiente de confirmacion por tu especialista.',
+                                            'Cita solicitada con exito. Queda pendiente de aceptación. Después podrás pagar USD 5 para confirmarla.',
                                           ),
                                           backgroundColor: Color(0xFF059669),
                                         ),
@@ -1789,10 +1835,15 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 14),
 
             OutlinedButton.icon(
-              onPressed: () => Navigator.push(context, MaterialPageRoute<void>(
-                builder: (_) => const NutritionDiaryScreen())),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const NutritionDiaryScreen(),
+                ),
+              ),
               icon: const Icon(Icons.restaurant_menu),
-              label: const Text('Ver plan asignado y diario de alimentación')),
+              label: const Text('Ver plan asignado y diario de alimentación'),
+            ),
             const SizedBox(height: 14),
 
             // Filtros de Categoría
@@ -2127,6 +2178,18 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const NutritionHeading('Perfil'),
+          const SizedBox(height: 16),
+          NutritionCard(
+            child: ListTile(
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: const Text('Mi wallet y pagos'),
+              subtitle: const Text('Saldo, recargas y comprobantes'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const WalletScreen())),
+            ),
+          ),
           const SizedBox(height: 28),
           Row(
             children: [

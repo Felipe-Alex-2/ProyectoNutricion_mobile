@@ -420,6 +420,7 @@ void main() {
         if (config.$1 == 390) {
           await _capture(tester, capture, '$prefix-08-perfil');
         }
+        await tester.ensureVisible(find.text('Mis comprobantes'));
         await tester.tap(find.text('Mis comprobantes'));
         await tester.pumpAndSettle();
         expect(find.text('Ver recibo'), findsOneWidget);
