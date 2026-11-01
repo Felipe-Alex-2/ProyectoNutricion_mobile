@@ -22,6 +22,7 @@ class _WalletScreenState extends State<WalletScreen>
   List<Map<String, dynamic>> _payments = [];
   bool _busy = false;
   String? _error, _message;
+  String? _activeOrderId;
   final Map<int, String> _keys = {};
   ApiService get _api => context.read<ApiService>();
 
@@ -29,7 +30,7 @@ class _WalletScreenState extends State<WalletScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resumeAndVerify());
   }
 
   @override
@@ -40,7 +41,26 @@ class _WalletScreenState extends State<WalletScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !_busy) _load();
+    if (state == AppLifecycleState.resumed && !_busy) _resumeAndVerify();
+  }
+
+  Future<void> _resumeAndVerify() async {
+    await _load();
+    if (!mounted || _busy) return;
+    final pending = _payments
+        .where(
+          (p) =>
+              p['status'] == 'PENDING' &&
+              p['paypal_order_id'] != null &&
+              (_activeOrderId == null ||
+                  p['paypal_order_id'] == _activeOrderId),
+        )
+        .take(1)
+        .toList();
+    for (final payment in pending) {
+      if (!mounted) return;
+      await _verify(payment, automatic: true);
+    }
   }
 
   Future<void> _load() async {
@@ -86,6 +106,7 @@ class _WalletScreenState extends State<WalletScreen>
       }
       return;
     }
+    _activeOrderId = result['paypal_order_id'] as String?;
     final url = result['approval_url'] as String?;
     if (url != null && url.isNotEmpty) {
       final opened = await launchUrl(
@@ -133,12 +154,20 @@ class _WalletScreenState extends State<WalletScreen>
     await _load();
   }
 
-  Future<void> _verify(Map<String, dynamic> payment) async {
+  Future<void> _verify(
+    Map<String, dynamic> payment, {
+    bool automatic = false,
+  }) async {
     await _run(() async {
-      await _api.post(
-        '/payments/capture',
-        body: {'paypal_order_id': payment['paypal_order_id']},
-      );
+      try {
+        await _api.post(
+          '/payments/capture',
+          body: {'paypal_order_id': payment['paypal_order_id']},
+        );
+      } on ApiException catch (error) {
+        if (automatic && error.statusCode == 409) return;
+        rethrow;
+      }
       if (!mounted) return;
       _keys.clear();
       setState(

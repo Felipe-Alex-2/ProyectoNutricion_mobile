@@ -137,4 +137,70 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'Reopening wallet automatically verifies the latest approved topup',
+    (tester) async {
+      var credited = false;
+      var captures = 0;
+      final api = ApiService(
+        StorageService(),
+        client: MockClient((r) async {
+          dynamic body = [];
+          if (r.url.path.endsWith('/wallet')) {
+            body = {
+              'balance': credited ? 20 : 0,
+              'movements': [],
+              'currency': 'USD',
+            };
+          }
+          if (r.url.path.endsWith('/my-payments')) {
+            body = [
+              {
+                'id': 'topup',
+                'purpose': 'WALLET_TOPUP',
+                'status': credited ? 'COMPLETED' : 'PENDING',
+                'concept': 'Recarga wallet USD 20',
+                'amount': 20,
+                'payment_method': 'PAYPAL',
+                'paypal_order_id': 'ORDER',
+              },
+            ];
+          }
+          if (r.url.path.endsWith('/payments/capture')) {
+            captures++;
+            credited = true;
+            body = {'status': 'COMPLETED'};
+          }
+          return http.Response(
+            jsonEncode(body),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }),
+      );
+      api.currentUserId = 'patient';
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<ApiService>.value(value: api),
+            ChangeNotifierProvider(create: (_) => AppointmentService(api)),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const WalletScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(captures, 1);
+      expect(credited, isTrue);
+      expect(
+        find.text('Recarga confirmada. Tu saldo ya está disponible.'),
+        findsOneWidget,
+      );
+      expect(find.text(r'$20.00'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 }
