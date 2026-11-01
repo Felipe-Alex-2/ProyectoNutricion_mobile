@@ -37,6 +37,7 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
         var paid = false;
+        var preference = 'PENDING';
         final requests = <http.Request>[];
         final api = ApiService(
           StorageService(),
@@ -60,15 +61,21 @@ void main() {
                         'concept': 'Consulta general',
                         'amount': 5,
                         'currency': 'USD',
-                        'payment_method': paid ? 'WALLET' : 'PENDING',
+                        'payment_method': paid ? 'WALLET' : preference,
                         'paypal_order_id': null,
                       },
                     ]
                   : [];
             }
             if (r.url.path.endsWith('/appointments/a/pay')) {
-              paid = true;
-              body = {'payment_id': 'p', 'status': 'COMPLETED'};
+              final method = jsonDecode(r.body)['method'];
+              if (method == 'ONLINE' || method == 'PRESENCIAL') {
+                preference = method;
+                body = {'payment_id': 'p', 'status': 'PENDING'};
+              } else {
+                paid = true;
+                body = {'payment_id': 'p', 'status': 'COMPLETED'};
+              }
             }
             return http.Response(
               jsonEncode(body),
@@ -105,6 +112,18 @@ void main() {
           );
           expect(find.text('Pagar USD 5 con wallet'), findsNothing);
         } else {
+          final presencial = find.text('Presencial · USD 5');
+          await tester.ensureVisible(presencial);
+          await tester.tap(presencial);
+          await tester.pumpAndSettle();
+          expect(paid, isFalse);
+          expect(preference, 'PRESENCIAL');
+          expect(find.text('Pagar USD 5 con wallet'), findsNothing);
+          final online = find.text('Online · USD 5');
+          await tester.ensureVisible(online);
+          await tester.tap(online);
+          await tester.pumpAndSettle();
+          expect(paid, isFalse);
           final pay = find.text('Pagar USD 5 con wallet');
           await tester.ensureVisible(pay);
           await tester.tap(pay);
@@ -112,7 +131,11 @@ void main() {
           expect(paid, isTrue);
           expect(
             requests
-                .where((r) => r.url.path.endsWith('/appointments/a/pay'))
+                .where(
+                  (r) =>
+                      r.url.path.endsWith('/appointments/a/pay') &&
+                      jsonDecode(r.body)['method'] == 'WALLET',
+                )
                 .single
                 .body,
             contains('WALLET'),
@@ -199,6 +222,66 @@ void main() {
         findsOneWidget,
       );
       expect(find.text(r'$20.00'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets(
+    'Wallet failure does not block choosing in-person payment for an accepted appointment',
+    (tester) async {
+      String? selected;
+      final api = ApiService(
+        StorageService(),
+        client: MockClient((r) async {
+          if (r.url.path.endsWith('/wallet')) {
+            return http.Response('{"detail":"Not Found"}', 404);
+          }
+          dynamic body = [];
+          if (r.url.path.endsWith('/my-payments')) {
+            body = [
+              {
+                'id': 'p',
+                'appointment_id': 'a',
+                'status': 'PENDING',
+                'concept': 'Consulta general',
+                'amount': 5,
+                'payment_method': selected ?? 'PENDING',
+                'paypal_order_id': null,
+              },
+            ];
+          }
+          if (r.url.path.endsWith('/appointments/a/pay')) {
+            selected = jsonDecode(r.body)['method'];
+            body = {'status': 'PENDING', 'payment_id': 'p'};
+          }
+          return http.Response(
+            jsonEncode(body),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }),
+      );
+      api.currentUserId = 'patient';
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<ApiService>.value(value: api),
+            ChangeNotifierProvider(create: (_) => AppointmentService(api)),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const WalletScreen(appointmentId: 'a'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Not Found'), findsNothing);
+      final option = find.text('Presencial · USD 5');
+      await tester.ensureVisible(option);
+      await tester.tap(option);
+      await tester.pumpAndSettle();
+      expect(selected, 'PRESENCIAL');
+      expect(find.text('Confirmada · pagada'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },

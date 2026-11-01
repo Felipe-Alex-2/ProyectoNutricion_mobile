@@ -9,12 +9,16 @@ class AppointmentModel {
   final String? nutritionistName;
   final DateTime scheduledAt;
   final String? reason;
+  final String? paymentStatus;
+  final String? paymentPreference;
+  final String? paymentMethod;
   final String status; // PENDING, CONFIRMED, CANCELLED
   final String? cancellationReason;
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  bool get isOfflinePending => status == 'PENDIENTE_OFFLINE' || id.startsWith('offline_');
+  bool get isOfflinePending =>
+      status == 'PENDIENTE_OFFLINE' || id.startsWith('offline_');
   bool get isConflictError => status == 'ERROR_CONFLICTO';
 
   AppointmentModel({
@@ -29,6 +33,9 @@ class AppointmentModel {
     required this.scheduledAt,
     this.reason,
     required this.status,
+    this.paymentStatus,
+    this.paymentPreference,
+    this.paymentMethod,
     this.cancellationReason,
     required this.createdAt,
     required this.updatedAt,
@@ -47,6 +54,9 @@ class AppointmentModel {
       scheduledAt: DateTime.parse(json['scheduled_at'] as String),
       reason: json['reason'] as String?,
       status: json['status'] as String? ?? 'PENDING',
+      paymentStatus: json['payment_status'] as String?,
+      paymentPreference: json['payment_preference'] as String?,
+      paymentMethod: json['payment_method'] as String?,
       cancellationReason: json['cancellation_reason'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
@@ -66,6 +76,9 @@ class AppointmentModel {
       'scheduled_at': scheduledAt.toIso8601String(),
       'reason': reason,
       'status': status,
+      'payment_status': paymentStatus,
+      'payment_preference': paymentPreference,
+      'payment_method': paymentMethod,
       'cancellation_reason': cancellationReason,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),

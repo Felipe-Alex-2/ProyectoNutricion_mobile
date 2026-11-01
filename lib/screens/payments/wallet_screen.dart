@@ -18,6 +18,8 @@ class WalletScreen extends StatefulWidget {
 
 class _WalletScreenState extends State<WalletScreen>
     with WidgetsBindingObserver {
+  static const _paymentsUnavailable =
+      'Los pagos online no están disponibles temporalmente. No se realizó ningún cobro. Intenta más tarde o contacta a la clínica.';
   Map<String, dynamic>? _wallet;
   List<Map<String, dynamic>> _payments = [];
   bool _busy = false;
@@ -66,15 +68,30 @@ class _WalletScreenState extends State<WalletScreen>
   Future<void> _load() async {
     if (!mounted) return;
     await _run(() async {
-      final wallet = await _api.get('/wallet', usarCache: false);
-      final payments = await _api.get('/my-payments', usarCache: false);
+      Object? loadError;
+      final results = await Future.wait([
+        _api.get('/wallet', usarCache: false).catchError((Object e) {
+          loadError = e;
+          return null;
+        }),
+        _api.get('/my-payments', usarCache: false).catchError((Object e) {
+          loadError = e;
+          return null;
+        }),
+      ]);
       if (!mounted) return;
       setState(() {
-        _wallet = Map<String, dynamic>.from(wallet);
-        _payments = (payments as List)
-            .map((p) => Map<String, dynamic>.from(p))
-            .toList();
+        if (loadError == null && _error == _paymentsUnavailable) _error = null;
+        _wallet = results[0] is Map
+            ? Map<String, dynamic>.from(results[0])
+            : null;
+        _payments = results[1] is List
+            ? (results[1] as List)
+                  .map((p) => Map<String, dynamic>.from(p))
+                  .toList()
+            : [];
       });
+      if (loadError != null) throw loadError!;
     }, clearError: false);
   }
 
@@ -85,12 +102,21 @@ class _WalletScreenState extends State<WalletScreen>
     if (!mounted || _busy) return;
     setState(() {
       _busy = true;
-      if (clearError) _error = null;
+      if (clearError) {
+        _error = null;
+        _message = null;
+      }
     });
     try {
       await action();
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = e is ApiException && e.statusCode == 404
+              ? _paymentsUnavailable
+              : e.toString(),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -148,7 +174,17 @@ class _WalletScreenState extends State<WalletScreen>
         '/appointments/${widget.appointmentId}/pay',
         body: {'method': method, 'mobile': true},
       );
-      await _openOrder(result);
+      if (method == 'PRESENCIAL' || method == 'ONLINE') {
+        if (mounted) {
+          setState(
+            () => _message = method == 'PRESENCIAL'
+                ? 'Elegiste pago presencial. Abona USD 5 en caja; el pago sigue pendiente.'
+                : 'Elegiste pago online. Completa USD 5 con wallet o PayPal.',
+          );
+        }
+      } else {
+        await _openOrder(result);
+      }
       if (mounted) await context.read<AppointmentService>().fetchAppointments();
     });
     await _load();
@@ -277,21 +313,60 @@ class _WalletScreenState extends State<WalletScreen>
                         'Cita aceptada. Completa el pago para confirmar tu reserva.',
                       ),
                       const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed:
-                            _busy ||
-                                _wallet == null ||
-                                charge['paypal_order_id'] != null
-                            ? null
-                            : () => _pay('WALLET'),
-                        icon: const Icon(Icons.account_balance_wallet_outlined),
-                        label: const Text('Pagar USD 5 con wallet'),
-                      ),
+                      const Text('¿Cómo deseas pagar?'),
                       const SizedBox(height: 8),
-                      OutlinedButton(
-                        onPressed: _busy ? null : () => _pay('PAYPAL'),
-                        child: const Text('Pagar USD 5 con PayPal Sandbox'),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed:
+                                _busy || charge['paypal_order_id'] != null
+                                ? null
+                                : () => _pay('PRESENCIAL'),
+                            icon: const Icon(Icons.storefront_outlined),
+                            label: const Text('Presencial · USD 5'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed:
+                                _busy || charge['paypal_order_id'] != null
+                                ? null
+                                : () => _pay('ONLINE'),
+                            icon: const Icon(Icons.language),
+                            label: const Text('Online · USD 5'),
+                          ),
+                        ],
                       ),
+                      if (charge['payment_method'] == 'PRESENCIAL') ...[
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Pago presencial seleccionado. Pendiente de cobro en caja; elegir esta opción no registra un pago.',
+                        ),
+                      ],
+                      if ([
+                        'ONLINE',
+                        'PAYPAL',
+                        'WALLET',
+                      ].contains(charge['payment_method'])) ...[
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed:
+                              _busy ||
+                                  _wallet == null ||
+                                  charge['paypal_order_id'] != null
+                              ? null
+                              : () => _pay('WALLET'),
+                          icon: const Icon(
+                            Icons.account_balance_wallet_outlined,
+                          ),
+                          label: const Text('Pagar USD 5 con wallet'),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton(
+                          onPressed: _busy ? null : () => _pay('PAYPAL'),
+                          child: const Text('Pagar USD 5 con PayPal Sandbox'),
+                        ),
+                      ],
                     ],
                   ],
                 ),

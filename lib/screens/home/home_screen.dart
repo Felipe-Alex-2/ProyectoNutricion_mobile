@@ -1022,11 +1022,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   appointment.nutritionistName ?? 'Tu nutricionista',
                   style: TextStyle(color: textSecondary),
                 ),
+                if (appointment.paymentStatus == 'PAID')
+                  const NutritionStatus('Pagado', icon: Icons.check_circle),
+                if (appointment.paymentPreference != null &&
+                    appointment.paymentStatus != 'PAID')
+                  Text(
+                    appointment.paymentPreference == 'PRESENCIAL'
+                        ? 'Pago presencial elegido · pendiente de cobro en caja'
+                        : 'Pago online elegido · pendiente de completar',
+                  ),
                 if (appointment.status == 'ACCEPTED') ...[
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     icon: const Icon(Icons.payments_outlined),
-                    label: const Text('Pagar consulta general · USD 5'),
+                    label: const Text(
+                      'Elegir pago online o presencial · USD 5',
+                    ),
                     onPressed: () async {
                       await Navigator.of(context).push(
                         MaterialPageRoute(
