@@ -118,12 +118,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(paid, isFalse);
           expect(preference, 'PRESENCIAL');
-          expect(find.text('Pagar USD 5 con wallet'), findsNothing);
-          final online = find.text('Online · USD 5');
-          await tester.ensureVisible(online);
-          await tester.tap(online);
-          await tester.pumpAndSettle();
-          expect(paid, isFalse);
+          expect(find.text('Pagar USD 5 con wallet'), findsOneWidget);
           final pay = find.text('Pagar USD 5 con wallet');
           await tester.ensureVisible(pay);
           await tester.tap(pay);

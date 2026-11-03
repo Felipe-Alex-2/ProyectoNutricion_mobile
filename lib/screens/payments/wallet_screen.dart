@@ -164,6 +164,7 @@ class _WalletScreenState extends State<WalletScreen>
         idempotencyKey: key,
       );
       await _openOrder(result);
+      if (result['status'] == 'COMPLETED') _keys.remove(amount);
     });
     await _load();
   }
@@ -174,12 +175,10 @@ class _WalletScreenState extends State<WalletScreen>
         '/appointments/${widget.appointmentId}/pay',
         body: {'method': method, 'mobile': true},
       );
-      if (method == 'PRESENCIAL' || method == 'ONLINE') {
+      if (method == 'PRESENCIAL') {
         if (mounted) {
           setState(
-            () => _message = method == 'PRESENCIAL'
-                ? 'Elegiste pago presencial. Abona USD 5 en caja; el pago sigue pendiente.'
-                : 'Elegiste pago online. Completa USD 5 con wallet o PayPal.',
+            () => _message = 'Elegiste pago presencial. Abona USD 5 en caja; el pago sigue pendiente.',
           );
         }
       } else {
@@ -328,12 +327,9 @@ class _WalletScreenState extends State<WalletScreen>
                             label: const Text('Presencial · USD 5'),
                           ),
                           OutlinedButton.icon(
-                            onPressed:
-                                _busy || charge['paypal_order_id'] != null
-                                ? null
-                                : () => _pay('ONLINE'),
+                            onPressed: _busy ? null : () => _pay('ONLINE'),
                             icon: const Icon(Icons.language),
-                            label: const Text('Online · USD 5'),
+                            label: const Text('Online · PayPal · USD 5'),
                           ),
                         ],
                       ),
@@ -343,30 +339,17 @@ class _WalletScreenState extends State<WalletScreen>
                           'Pago presencial seleccionado. Pendiente de cobro en caja; elegir esta opción no registra un pago.',
                         ),
                       ],
-                      if ([
-                        'ONLINE',
-                        'PAYPAL',
-                        'WALLET',
-                      ].contains(charge['payment_method'])) ...[
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed:
-                              _busy ||
-                                  _wallet == null ||
-                                  charge['paypal_order_id'] != null
-                              ? null
-                              : () => _pay('WALLET'),
-                          icon: const Icon(
-                            Icons.account_balance_wallet_outlined,
-                          ),
-                          label: const Text('Pagar USD 5 con wallet'),
-                        ),
-                        const SizedBox(height: 8),
-                        OutlinedButton(
-                          onPressed: _busy ? null : () => _pay('PAYPAL'),
-                          child: const Text('Pagar USD 5 con PayPal Sandbox'),
-                        ),
-                      ],
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed:
+                            _busy ||
+                                _wallet == null ||
+                                charge['paypal_order_id'] != null
+                            ? null
+                            : () => _pay('WALLET'),
+                        icon: const Icon(Icons.account_balance_wallet_outlined),
+                        label: const Text('Pagar USD 5 con wallet'),
+                      ),
                     ],
                   ],
                 ),

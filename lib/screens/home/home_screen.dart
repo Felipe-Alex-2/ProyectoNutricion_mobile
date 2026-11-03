@@ -1036,7 +1036,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   FilledButton.icon(
                     icon: const Icon(Icons.payments_outlined),
                     label: const Text(
-                      'Elegir pago online o presencial · USD 5',
+                      'Elegir pago · USD 5',
                     ),
                     onPressed: () async {
                       await Navigator.of(context).push(
