@@ -248,4 +248,33 @@ void main() {
       expect(service.receipts.single.orderId, 'ORDER-123');
     },
   );
+  test('Premium checkout requests the fixed mobile plan and returns Sandbox approval URL', () async {
+    final storage = StorageService();
+    final api = ApiService(
+      storage,
+      client: MockClient((r) async {
+        expect(r.url.path.endsWith('/subscriptions/create-order'), isTrue);
+        expect(jsonDecode(r.body), {
+          'plan_name': 'CLIENTE_PREMIUM',
+          'mobile': true,
+        });
+        return http.Response(
+          jsonEncode({
+            'order_id': 'ORDER',
+            'approval_url':
+                'https://www.sandbox.paypal.com/checkoutnow?token=ORDER',
+          }),
+          200,
+        );
+      }),
+    )..currentUserId = 'buyer';
+    addTearDown(api.dispose);
+    final service = SubscriptionService(api, storage);
+    final result = await service.createPayPalOrder('CLIENTE_PREMIUM');
+    expect(
+      result?.approvalUrl,
+      'https://www.sandbox.paypal.com/checkoutnow?token=ORDER',
+    );
+    expect(service.isPremium, isFalse);
+  });
 }

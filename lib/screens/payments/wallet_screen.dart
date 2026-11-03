@@ -276,12 +276,12 @@ class _WalletScreenState extends State<WalletScreen>
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final amount in [5, 10, 20, 50])
+                      for (final amount in [5])
                         OutlinedButton(
                           onPressed: _busy || _wallet == null
                               ? null
                               : () => _topup(amount),
-                          child: Text('+ \$$amount'),
+                          child: Text('Recargar USD $amount con PayPal'),
                         ),
                     ],
                   ),

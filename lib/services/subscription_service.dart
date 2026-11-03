@@ -244,7 +244,7 @@ class SubscriptionService extends ChangeNotifier {
     try {
       final data = await _apiService.post(
         '/subscriptions/create-order',
-        body: {'plan_name': planName},
+        body: {'plan_name': planName, 'mobile': true},
       );
       return CreateOrderResponse.fromJson(data as Map<String, dynamic>);
     } catch (error) {

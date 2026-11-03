@@ -281,4 +281,105 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  for (final flow in ['ONLINE', 'TOPUP']) {
+    testWidgets(
+      '$flow opens the external Sandbox checkout without marking paid',
+      (tester) async {
+        final launched = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/url_launcher'),
+          (call) async {
+            if (call.method == 'launch') {
+              launched.add((call.arguments as Map)['url'] as String);
+              expect((call.arguments as Map)['useWebView'], isFalse);
+            }
+            return true;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/url_launcher'),
+            null,
+          ),
+        );
+        final requests = <http.Request>[];
+        final api = ApiService(
+          StorageService(),
+          client: MockClient((r) async {
+            requests.add(r);
+            dynamic body = [];
+            if (r.url.path.endsWith('/wallet')) {
+              body = {'balance': 0, 'currency': 'USD', 'movements': []};
+            } else if (r.url.path.endsWith('/my-payments') &&
+                flow == 'ONLINE') {
+              body = [
+                {
+                  'id': 'charge',
+                  'appointment_id': 'a',
+                  'status': 'PENDING',
+                  'amount': 5,
+                  'payment_method': 'PENDING',
+                  'paypal_order_id': null,
+                },
+              ];
+            } else if (r.method == 'POST') {
+              final payload = jsonDecode(r.body) as Map;
+              if (flow == 'ONLINE') {
+                expect(payload, {'method': 'ONLINE', 'mobile': true});
+              } else {
+                expect(payload, {'amount': 5});
+                expect(
+                  r.headers['Idempotency-Key'] ?? r.headers['idempotency-key'],
+                  isNotEmpty,
+                );
+              }
+              body = {
+                'payment_id': 'charge',
+                'paypal_order_id': 'ORDER',
+                'approval_url':
+                    'https://www.sandbox.paypal.com/checkoutnow?token=ORDER',
+              };
+            }
+            return http.Response(
+              jsonEncode(body),
+              200,
+              headers: {'content-type': 'application/json; charset=utf-8'},
+            );
+          }),
+        )..currentUserId = 'patient';
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              Provider<ApiService>.value(value: api),
+              ChangeNotifierProvider(create: (_) => AppointmentService(api)),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightTheme,
+              home: WalletScreen(appointmentId: flow == 'ONLINE' ? 'a' : null),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final button = find.text(
+          flow == 'ONLINE'
+              ? 'Online · PayPal · USD 5'
+              : 'Recargar USD 5 con PayPal',
+        );
+        await tester.ensureVisible(button);
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        expect(launched, [
+          'https://www.sandbox.paypal.com/checkoutnow?token=ORDER',
+        ]);
+        expect(
+          requests.where((r) => r.url.path.endsWith('/payments/capture')),
+          isEmpty,
+        );
+        expect(find.text('Confirmada · pagada'), findsNothing);
+        expect(find.text(r'$0.00'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
 }
