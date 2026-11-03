@@ -26,6 +26,14 @@ class _WalletScreenState extends State<WalletScreen>
   String? _error, _message;
   String? _activeOrderId;
   final Map<int, String> _keys = {};
+  bool get _isWallet => widget.appointmentId == null;
+  Iterable<Map<String, dynamic>> get _visiblePayments => _payments.where(
+    (p) => _isWallet
+        ? p['purpose'] == 'WALLET_TOPUP' ||
+              p['payment_method'] == 'WALLET' ||
+              p['appointment_id'] == null
+        : p['appointment_id'] == widget.appointmentId,
+  );
   ApiService get _api => context.read<ApiService>();
 
   @override
@@ -49,7 +57,7 @@ class _WalletScreenState extends State<WalletScreen>
   Future<void> _resumeAndVerify() async {
     await _load();
     if (!mounted || _busy) return;
-    final pending = _payments
+    final pending = _visiblePayments
         .where(
           (p) =>
               p['status'] == 'PENDING' &&
@@ -170,6 +178,28 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   Future<void> _pay(String method) async {
+    if (method == 'WALLET') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Confirmar pago con wallet'),
+          content: const Text(
+            'Se descontarán USD 5 de tu wallet para pagar esta consulta.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Pagar USD 5'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
     await _run(() async {
       final result = await _api.post(
         '/appointments/${widget.appointmentId}/pay',
@@ -187,6 +217,14 @@ class _WalletScreenState extends State<WalletScreen>
       if (mounted) await context.read<AppointmentService>().fetchAppointments();
     });
     await _load();
+    if (mounted && method == 'WALLET') {
+      final paid = _visiblePayments
+          .where((p) => p['status'] == 'COMPLETED')
+          .firstOrNull;
+      if (paid != null) {
+        _showReceipt(paid);
+      }
+    }
   }
 
   Future<void> _verify(
@@ -215,9 +253,62 @@ class _WalletScreenState extends State<WalletScreen>
     await _load();
   }
 
+  Future<void> _cancelChoice() async {
+    await _run(() async {
+      final result = await _api.post(
+        '/appointments/${widget.appointmentId}/cancel-payment-choice',
+        body: {},
+      );
+      _activeOrderId = null;
+      if (mounted) {
+        setState(
+          () => _message = result['status'] == 'COMPLETED'
+              ? 'PayPal ya había aprobado el pago. La consulta quedó pagada.'
+              : 'Selección cancelada. Puedes elegir otro método de pago.',
+        );
+      }
+      if (mounted) await context.read<AppointmentService>().fetchAppointments();
+    });
+    await _load();
+  }
+
+  Future<void> _showReceipt(Map<String, dynamic> payment) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Recibo de pago'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(payment['concept']?.toString() ?? 'Consulta general'),
+              const SizedBox(height: 12),
+              Text(
+                'Importe: USD ${(payment['amount'] as num).toStringAsFixed(2)}',
+              ),
+              Text('Método: ${payment['payment_method']}'),
+              Text(
+                'Fecha: ${payment['paid_at'] ?? payment['created_at'] ?? 'Pago confirmado'}',
+              ),
+              Text('Referencia: ${payment['id']}'),
+              const Text('Estado: Pagado'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pending = _payments
+    final pending = _visiblePayments
         .where((p) => p['status'] == 'PENDING' && p['paypal_order_id'] != null)
         .toList();
     final charge = _payments
@@ -259,7 +350,7 @@ class _WalletScreenState extends State<WalletScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Saldo disponible · USD'),
+                  const Text('Saldo disponible en wallet · USD'),
                   const SizedBox(height: 8),
                   Text(
                     _wallet == null
@@ -267,24 +358,28 @@ class _WalletScreenState extends State<WalletScreen>
                         : '\$${(_wallet!['balance'] as num).toStringAsFixed(2)}',
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Recarga con PayPal Sandbox. El saldo se acredita después de verificar el pago.',
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final amount in [5])
-                        OutlinedButton(
-                          onPressed: _busy || _wallet == null
-                              ? null
-                              : () => _topup(amount),
-                          child: Text('Recargar USD $amount con PayPal'),
-                        ),
-                    ],
-                  ),
+                  if (_isWallet) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Recarga con PayPal Sandbox. El saldo se acredita después de verificar el pago.',
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final amount in [5])
+                          OutlinedButton(
+                            onPressed: _busy || _wallet == null
+                                ? null
+                                : () => _topup(amount),
+                            child: Text(
+                              'Recargar wallet USD $amount con PayPal',
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -339,6 +434,15 @@ class _WalletScreenState extends State<WalletScreen>
                           'Pago presencial seleccionado. Pendiente de cobro en caja; elegir esta opción no registra un pago.',
                         ),
                       ],
+                      if (charge['payment_method'] != 'PENDING' ||
+                          charge['paypal_order_id'] != null)
+                        TextButton.icon(
+                          onPressed: _busy ? null : _cancelChoice,
+                          icon: const Icon(Icons.close),
+                          label: const Text(
+                            'Cancelar selección y volver a elegir',
+                          ),
+                        ),
                       const SizedBox(height: 12),
                       FilledButton.icon(
                         onPressed:
@@ -385,33 +489,38 @@ class _WalletScreenState extends State<WalletScreen>
                 ),
               ),
             ],
-            const SizedBox(height: 20),
-            const NutritionHeading('Historial de movimientos'),
-            if (_wallet != null && (_wallet!['movements'] as List).isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Text('Aún no tienes movimientos en tu wallet.'),
-              ),
-            if (_wallet != null)
-              for (final m in _wallet!['movements'])
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    (m['amount'] as num) > 0
-                        ? Icons.add_circle_outline
-                        : Icons.remove_circle_outline,
-                  ),
-                  title: Text(m['concept']),
-                  subtitle: Text(m['created_at'].toString().substring(0, 10)),
-                  trailing: Text(
-                    '\$${(m['amount'] as num).toStringAsFixed(2)}',
-                  ),
+            if (_isWallet) ...[
+              const SizedBox(height: 20),
+              const NutritionHeading('Historial de movimientos'),
+              if (_wallet != null && (_wallet!['movements'] as List).isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Text('Aún no tienes movimientos en tu wallet.'),
                 ),
+              if (_wallet != null)
+                for (final m in _wallet!['movements'])
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      (m['amount'] as num) > 0
+                          ? Icons.add_circle_outline
+                          : Icons.remove_circle_outline,
+                    ),
+                    title: Text(m['concept']),
+                    subtitle: Text(m['created_at'].toString().substring(0, 10)),
+                    trailing: Text(
+                      '\$${(m['amount'] as num).toStringAsFixed(2)}',
+                    ),
+                  ),
+            ],
             const SizedBox(height: 20),
             const NutritionHeading('Mis comprobantes'),
-            for (final p in _payments.where((p) => p['status'] == 'COMPLETED'))
+            for (final p in _visiblePayments.where(
+              (p) => p['status'] == 'COMPLETED',
+            ))
               ListTile(
                 contentPadding: EdgeInsets.zero,
+                onTap: () => _showReceipt(p),
                 title: Text(p['concept']),
                 subtitle: Text('\$${p['amount']} USD · ${p['payment_method']}'),
                 trailing: IconButton(

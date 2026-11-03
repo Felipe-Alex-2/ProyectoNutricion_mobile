@@ -427,7 +427,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   label: Text(unreadCount > 99 ? '99+' : '$unreadCount'),
                   backgroundColor: AppTheme.accentOrange,
                   child: IconButton(
-                    tooltip: 'Notificaciones',
+                    tooltip: unreadCount > 0
+                        ? 'Notificaciones: $unreadCount mensajes sin leer'
+                        : 'Notificaciones',
                     onPressed: _openNotifications,
                     icon: const Icon(Icons.notifications_none_rounded),
                   ),

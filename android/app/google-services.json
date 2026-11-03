@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "715304659661",
+    "project_id": "nutrisalud-f0829",
+    "storage_bucket": "nutrisalud-f0829.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:715304659661:android:cdf0cfa48fa95f1771d784",
+        "android_client_info": {
+          "package_name": "com.nutrisalud.app.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBiu3qWJ7V3uPoxsppaK2o8tcw-NuBaZww"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

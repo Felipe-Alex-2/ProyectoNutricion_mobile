@@ -123,6 +123,12 @@ void main() {
           await tester.ensureVisible(pay);
           await tester.tap(pay);
           await tester.pumpAndSettle();
+          expect(paid, isFalse);
+          await tester.tap(find.text('Pagar USD 5'));
+          await tester.pumpAndSettle();
+          expect(find.text('Recibo de pago'), findsOneWidget);
+          await tester.tap(find.text('Cerrar'));
+          await tester.pumpAndSettle();
           expect(paid, isTrue);
           expect(
             requests
@@ -363,7 +369,7 @@ void main() {
         final button = find.text(
           flow == 'ONLINE'
               ? 'Online · PayPal · USD 5'
-              : 'Recargar USD 5 con PayPal',
+              : 'Recargar wallet USD 5 con PayPal',
         );
         await tester.ensureVisible(button);
         await tester.tap(button);
@@ -382,4 +388,159 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'Appointments exclude wallet topups, movements and recharge controls',
+    (tester) async {
+      var captures = 0;
+      final api = ApiService(
+        StorageService(),
+        client: MockClient((r) async {
+          dynamic body = [];
+          if (r.url.path.endsWith('/wallet'))
+            body = {
+              'balance': 15,
+              'currency': 'USD',
+              'movements': [
+                {
+                  'amount': 5,
+                  'concept': 'RECARGA AJENA',
+                  'created_at': '2026-11-03',
+                },
+              ],
+            };
+          if (r.url.path.endsWith('/my-payments'))
+            body = [
+              {
+                'id': 'topup',
+                'purpose': 'WALLET_TOPUP',
+                'status': 'COMPLETED',
+                'concept': 'RECARGA AJENA',
+                'amount': 5,
+                'payment_method': 'PAYPAL',
+              },
+              {
+                'id': 'pending-topup',
+                'purpose': 'WALLET_TOPUP',
+                'status': 'PENDING',
+                'concept': 'RECARGA PENDIENTE',
+                'amount': 5,
+                'paypal_order_id': 'TOPUP',
+              },
+              {
+                'id': 'other',
+                'appointment_id': 'other',
+                'status': 'COMPLETED',
+                'concept': 'OTRA CITA',
+                'amount': 5,
+                'payment_method': 'WALLET',
+              },
+              {
+                'id': 'p',
+                'appointment_id': 'a',
+                'status': 'PENDING',
+                'concept': 'Consulta general',
+                'amount': 5,
+                'payment_method': 'PENDING',
+              },
+            ];
+          if (r.url.path.endsWith('/payments/capture')) captures++;
+          return http.Response(
+            jsonEncode(body),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }),
+      )..currentUserId = 'patient';
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<ApiService>.value(value: api),
+            ChangeNotifierProvider(create: (_) => AppointmentService(api)),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const WalletScreen(appointmentId: 'a'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(r'$15.00'), findsOneWidget);
+      expect(find.textContaining('Recargar'), findsNothing);
+      expect(find.text('Historial de movimientos'), findsNothing);
+      expect(find.textContaining('RECARGA'), findsNothing);
+      expect(find.text('OTRA CITA'), findsNothing);
+      expect(captures, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets(
+    'Cancel pending PayPal choice restores methods and wallet can be declined',
+    (tester) async {
+      var selected = true;
+      var debits = 0;
+      final api = ApiService(
+        StorageService(),
+        client: MockClient((r) async {
+          dynamic body = [];
+          var status = 200;
+          if (r.url.path.endsWith('/wallet'))
+            body = {'balance': 10, 'movements': []};
+          if (r.url.path.endsWith('/my-payments'))
+            body = [
+              {
+                'id': 'p',
+                'appointment_id': 'a',
+                'status': 'PENDING',
+                'amount': 5,
+                'payment_method': selected ? 'PAYPAL' : 'PENDING',
+                'paypal_order_id': selected ? 'ORDER' : null,
+              },
+            ];
+          if (r.url.path.endsWith('/payments/capture')) {
+            status = 409;
+            body = {'detail': 'Pendiente'};
+          }
+          if (r.url.path.endsWith('/cancel-payment-choice')) {
+            selected = false;
+            body = {'status': 'PENDING'};
+          }
+          if (r.url.path.endsWith('/appointments/a/pay')) debits++;
+          return http.Response(
+            jsonEncode(body),
+            status,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }),
+      )..currentUserId = 'patient';
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<ApiService>.value(value: api),
+            ChangeNotifierProvider(create: (_) => AppointmentService(api)),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: const WalletScreen(appointmentId: 'a'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final cancel = find.text('Cancelar selección y volver a elegir');
+      await tester.ensureVisible(cancel);
+      await tester.tap(cancel);
+      await tester.pumpAndSettle();
+      expect(selected, isFalse);
+      expect(cancel, findsNothing);
+      final wallet = find.text('Pagar USD 5 con wallet');
+      await tester.ensureVisible(wallet);
+      await tester.tap(wallet);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(debits, 0);
+      expect(find.text('Confirmar pago con wallet'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 }

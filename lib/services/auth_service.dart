@@ -17,6 +17,7 @@ enum AuthStatus {
 }
 
 class AuthService extends ChangeNotifier {
+  Future<void> Function()? beforeLogout;
   final ApiService _apiService;
   final StorageService _storageService;
   final CacheLocalService? cacheService;
@@ -267,6 +268,9 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    try {
+      await beforeLogout?.call();
+    } catch (_) {}
     final uid = _currentUser?.id;
     try {
       final refresh = await _storageService.getRefreshToken();

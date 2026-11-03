@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+
 import '../models/notification_model.dart';
 import 'api_service.dart';
 
@@ -34,7 +36,14 @@ class NotificationService extends ChangeNotifier {
     _pollingTimer = null;
   }
 
-  void reset() { stopPolling(); _notifications = []; _unreadCount = 0; _latestAlert = null; _isLoading = false; notifyListeners(); }
+  void reset() {
+    stopPolling();
+    _notifications = [];
+    _unreadCount = 0;
+    _latestAlert = null;
+    _isLoading = false;
+    notifyListeners();
+  }
 
   Future<void> playAlertSoundAndVibrate() async {
     try {
@@ -52,17 +61,35 @@ class NotificationService extends ChangeNotifier {
       return;
     }
     try {
-      final response = await _apiService.get('/notifications?limit=25');
+      final owner = _apiService.currentUserId;
+      final response = await _apiService.get(
+        '/notifications?limit=25',
+        usarCache: false,
+      );
+      final count = await _apiService.get(
+        '/notifications/unread-count',
+        usarCache: false,
+      );
+      if (_apiService.currentUserId != owner) return;
       if (response is List) {
         final freshList = response
-            .map((item) => NotificationModel.fromJson(item as Map<String, dynamic>))
+            .map(
+              (item) =>
+                  NotificationModel.fromJson(item as Map<String, dynamic>),
+            )
             .toList();
-        final freshUnread = freshList.where((n) => !n.isRead).length;
+        final freshUnread = count is Map && count['unread_count'] is int
+            ? count['unread_count'] as int
+            : freshList.where((n) => !n.isRead).length;
 
         // Detectar si llegaron nuevas notificaciones no leídas
-        final newUnreadItems = freshList.where(
-          (f) => !f.isRead && !_notifications.any((old) => old.id == f.id && !old.isRead),
-        ).toList();
+        final newUnreadItems = freshList
+            .where(
+              (f) =>
+                  !f.isRead &&
+                  !_notifications.any((old) => old.id == f.id && !old.isRead),
+            )
+            .toList();
 
         if (newUnreadItems.isNotEmpty && _notifications.isNotEmpty) {
           // Hacer sonar y vibrar el teléfono
@@ -84,16 +111,30 @@ class NotificationService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _apiService.get('/notifications?limit=50');
+      final owner = _apiService.currentUserId;
+      final response = await _apiService.get(
+        '/notifications?limit=50',
+        usarCache: false,
+      );
+      final count = await _apiService.get(
+        '/notifications/unread-count',
+        usarCache: false,
+      );
+      if (_apiService.currentUserId != owner) return;
       if (response is List) {
         final freshList = response
-            .map((item) => NotificationModel.fromJson(item as Map<String, dynamic>))
+            .map(
+              (item) =>
+                  NotificationModel.fromJson(item as Map<String, dynamic>),
+            )
             .toList();
         _notifications = freshList;
       } else {
         _notifications = [];
       }
-      _unreadCount = _notifications.where((n) => !n.isRead).length;
+      _unreadCount = count is Map && count['unread_count'] is int
+          ? count['unread_count'] as int
+          : _notifications.where((n) => !n.isRead).length;
     } catch (e) {
       debugPrint('Error fetching notifications: $e');
     } finally {
@@ -103,9 +144,15 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> fetchUnreadCount() async {
+    final owner = _apiService.currentUserId;
     try {
-      final response = await _apiService.get('/notifications/unread-count');
-      if (response is Map<String, dynamic> && response.containsKey('unread_count')) {
+      final response = await _apiService.get(
+        '/notifications/unread-count',
+        usarCache: false,
+      );
+      if (_apiService.currentUserId != owner) return;
+      if (response is Map<String, dynamic> &&
+          response.containsKey('unread_count')) {
         final newCount = response['unread_count'] as int;
         if (newCount > _unreadCount && _unreadCount >= 0) {
           await playAlertSoundAndVibrate();
@@ -153,13 +200,16 @@ class NotificationService extends ChangeNotifier {
     String? referenceId,
   }) async {
     try {
-      final res = await _apiService.post('/notifications/send', body: {
-        'user_id': userId,
-        'title': title,
-        'message': message,
-        'type': type,
-        'reference_id': referenceId,
-      });
+      final res = await _apiService.post(
+        '/notifications/send',
+        body: {
+          'user_id': userId,
+          'title': title,
+          'message': message,
+          'type': type,
+          'reference_id': referenceId,
+        },
+      );
       return res != null;
     } catch (e) {
       debugPrint('Error sending notification: $e');
