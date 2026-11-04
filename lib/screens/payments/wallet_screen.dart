@@ -1,3 +1,7 @@
+import '../../modo_offline/conectividad_service.dart';
+import '../../services/offline_wallet_service.dart';
+import '../../modo_offline/cola_sincronizacion_service.dart';
+
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -23,6 +27,7 @@ class _WalletScreenState extends State<WalletScreen>
   Map<String, dynamic>? _wallet;
   List<Map<String, dynamic>> _payments = [];
   bool _busy = false;
+  bool _hadWalletPending = false;
   String? _error, _message;
   String? _activeOrderId;
   final Map<int, String> _keys = {};
@@ -78,11 +83,11 @@ class _WalletScreenState extends State<WalletScreen>
     await _run(() async {
       Object? loadError;
       final results = await Future.wait([
-        _api.get('/wallet', usarCache: false).catchError((Object e) {
+        _api.get('/wallet').catchError((Object e) {
           loadError = e;
           return null;
         }),
-        _api.get('/my-payments', usarCache: false).catchError((Object e) {
+        _api.get('/my-payments').catchError((Object e) {
           loadError = e;
           return null;
         }),
@@ -184,7 +189,7 @@ class _WalletScreenState extends State<WalletScreen>
         builder: (ctx) => AlertDialog(
           title: const Text('Confirmar pago con wallet'),
           content: const Text(
-            'Se descontarán USD 5 de tu wallet para pagar esta consulta.',
+            'Se usarán USD 5 de tu wallet. Sin internet, el importe quedará reservado en este dispositivo y el pago pendiente de validación al reconectarse.',
           ),
           actions: [
             TextButton(
@@ -201,10 +206,21 @@ class _WalletScreenState extends State<WalletScreen>
       if (confirmed != true || !mounted) return;
     }
     await _run(() async {
-      final result = await _api.post(
-        '/appointments/${widget.appointmentId}/pay',
-        body: {'method': method, 'mobile': true},
-      );
+      final offlineWallet = context.read<OfflineWalletService?>();
+      final result = method == 'WALLET' && offlineWallet != null
+          ? await offlineWallet.pay(widget.appointmentId!)
+          : await _api.post(
+              '/appointments/${widget.appointmentId}/pay',
+              body: {'method': method, 'mobile': true},
+            );
+      if (result['offline_pending'] == true) {
+        if (mounted) {
+          setState(
+            () => _message = 'Pago con wallet guardado como pendiente. USD 5 reservados en este dispositivo. Se confirmará al recuperar internet y validar el saldo.',
+          );
+        }
+        return;
+      }
       if (method == 'PRESENCIAL') {
         if (mounted) {
           setState(
@@ -308,6 +324,19 @@ class _WalletScreenState extends State<WalletScreen>
 
   @override
   Widget build(BuildContext context) {
+    context.watch<ColaSincronizacionService?>();
+    context.watch<ConectividadService?>();
+    final offlineWallet = context.read<OfflineWalletService?>();
+    final walletPending = widget.appointmentId == null
+        ? null
+        : offlineWallet?.pendingFor(widget.appointmentId!);
+    if (_hadWalletPending && walletPending == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_busy) _load();
+      });
+    }
+    _hadWalletPending = walletPending != null;
+    final offline = _api.conectividadService?.estaConectado == false;
     final pending = _visiblePayments
         .where((p) => p['status'] == 'PENDING' && p['paypal_order_id'] != null)
         .toList();
@@ -355,9 +384,18 @@ class _WalletScreenState extends State<WalletScreen>
                   Text(
                     _wallet == null
                         ? '—'
-                        : '\$${(_wallet!['balance'] as num).toStringAsFixed(2)}',
+                        : '\$${(offlineWallet?.available(_wallet) ?? (_wallet!['balance'] as num).toDouble()).toStringAsFixed(2)}',
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
+                  if (offlineWallet != null &&
+                      offlineWallet.reserved(_wallet) > 0)
+                    Text(
+                      'USD ${offlineWallet.reserved(_wallet).toStringAsFixed(2)} reservados en pagos pendientes. Saldo confirmado: USD ${(_wallet?['balance'] as num?)?.toStringAsFixed(2) ?? '—'}.',
+                    ),
+                  if (offline)
+                    const Text(
+                      'Sin conexión: se muestra el último saldo descargado. Las recargas PayPal requieren internet.',
+                    ),
                   if (_isWallet) ...[
                     const SizedBox(height: 12),
                     const Text(
@@ -370,7 +408,7 @@ class _WalletScreenState extends State<WalletScreen>
                       children: [
                         for (final amount in [5])
                           OutlinedButton(
-                            onPressed: _busy || _wallet == null
+                            onPressed: _busy || offline || _wallet == null
                                 ? null
                                 : () => _topup(amount),
                             child: Text(
@@ -396,6 +434,10 @@ class _WalletScreenState extends State<WalletScreen>
                         'Confirmada · pagada',
                         icon: Icons.check_circle,
                       )
+                    else if (walletPending != null)
+                      Text(
+                        walletPending.mensajeError ?? 'Pago con wallet pendiente de sincronizar · USD 5. La cita se confirmará cuando el servidor valide el pago.',
+                      )
                     else if (charge == null)
                       const Text(
                         'El especialista debe aceptar la cita para habilitar el pago.',
@@ -415,14 +457,18 @@ class _WalletScreenState extends State<WalletScreen>
                         children: [
                           OutlinedButton.icon(
                             onPressed:
-                                _busy || charge['paypal_order_id'] != null
+                                _busy ||
+                                    offline ||
+                                    charge['paypal_order_id'] != null
                                 ? null
                                 : () => _pay('PRESENCIAL'),
                             icon: const Icon(Icons.storefront_outlined),
                             label: const Text('Presencial · USD 5'),
                           ),
                           OutlinedButton.icon(
-                            onPressed: _busy ? null : () => _pay('ONLINE'),
+                            onPressed: _busy || offline
+                                ? null
+                                : () => _pay('ONLINE'),
                             icon: const Icon(Icons.language),
                             label: const Text('Online · PayPal · USD 5'),
                           ),
@@ -437,7 +483,7 @@ class _WalletScreenState extends State<WalletScreen>
                       if (charge['payment_method'] != 'PENDING' ||
                           charge['paypal_order_id'] != null)
                         TextButton.icon(
-                          onPressed: _busy ? null : _cancelChoice,
+                          onPressed: _busy || offline ? null : _cancelChoice,
                           icon: const Icon(Icons.close),
                           label: const Text(
                             'Cancelar selección y volver a elegir',

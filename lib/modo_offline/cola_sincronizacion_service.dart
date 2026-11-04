@@ -24,6 +24,11 @@ class ColaSincronizacionService extends ChangeNotifier {
   Future<void>? _loading;
 
   List<ElementoCola> get elementos => List.unmodifiable(_colaMemoria);
+  Future<void> asegurarCuenta(String userId) async {
+    if (_loading != null) await _loading;
+    if (_loadedUserId != userId) await cargarCola(userId: userId);
+  }
+
   int get cantidadPendientes => _colaMemoria
       .where((e) => e.estado == 'PENDIENTE' || e.estado == 'SINCRONIZANDO')
       .length;

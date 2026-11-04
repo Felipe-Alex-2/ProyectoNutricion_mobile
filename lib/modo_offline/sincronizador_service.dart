@@ -128,7 +128,12 @@ class SincronizadorService extends ChangeNotifier {
               );
             }
 
-            if (elemento.tipoAccion == 'REGISTRAR_ALIMENTACION') {
+            if (elemento.tipoAccion == 'PAGAR_WALLET') {
+              await apiService.get('/wallet', forceRefresh: true);
+              await apiService.get('/my-payments', forceRefresh: true);
+              huboCambiosEnCitas = true;
+              _ultimoMensajeExito = 'Pago con wallet confirmado. Tu comprobante ya está disponible.';
+            } else if (elemento.tipoAccion == 'REGISTRAR_ALIMENTACION') {
               _ultimoMensajeExito = 'Registro de alimentación sincronizado.';
               onAlimentacionActualizada?.call();
             } else if (elemento.esCita) {

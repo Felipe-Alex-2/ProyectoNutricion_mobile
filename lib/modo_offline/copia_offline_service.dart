@@ -52,6 +52,8 @@ class CopiaOfflineService extends ChangeNotifier {
         '/plans/my-plan',
         '/recipes/my-plan',
         '/food/history',
+        '/wallet',
+        '/my-payments',
       ]) {
         if (generation != _generation || owner != api.currentUserId) return;
         try {

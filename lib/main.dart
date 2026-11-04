@@ -1,3 +1,4 @@
+import 'services/offline_wallet_service.dart';
 import 'modo_offline/copia_offline_service.dart';
 import 'modo_offline/widgets/banner_sin_conexion.dart';
 
@@ -148,6 +149,9 @@ Future<void> main() async {
           value: sincronizadorService,
         ),
         Provider<ApiService>.value(value: apiService),
+        Provider<OfflineWalletService>(
+          create: (_) => OfflineWalletService(apiService, colaService),
+        ),
         ChangeNotifierProvider<AuthService>.value(value: authService),
         ChangeNotifierProvider<ThemeService>.value(value: themeService),
         ChangeNotifierProvider<PatientService>.value(value: patientService),

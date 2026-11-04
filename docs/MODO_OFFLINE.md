@@ -12,6 +12,14 @@ Los datos se separan por cuenta y se conservan hasta 30 días desde su descarga.
 
 La sincronización automática funciona mientras la aplicación está activa o al volver a abrirla. No depende de Firebase. Para Carlitos generativo local, consultar `CARLITOS_OFFLINE.md`; requiere descargar su modelo por separado.
 
+## Pagos con wallet sin conexión
+
+La copia también descarga `/wallet` y `/my-payments`. Una consulta aceptada cuyo cobro esté descargado puede pagarse con wallet sin internet. Cada consulta cuesta USD 5; el importe se reserva en el dispositivo y aparece como **pendiente de sincronizar**, en la pantalla de pago y en la lista numerada general. Las reservas se restan del saldo disponible para evitar gastar dos veces el mismo saldo local. Una consulta con una orden PayPal iniciada no permite crear otro pago con wallet.
+
+El servidor confirma el pago al reconectarse y comprueba el saldo real, la propiedad y el estado de la cita. Si otro dispositivo gastó el saldo o cambió el cobro, la solicitud puede rechazarse y queda visible con su error. Solo después de confirmar se descuenta en el registro oficial, se confirma la cita y se habilita el comprobante. Una respuesta perdida no produce otro débito; un movimiento ya confirmado no se resta otra vez como reserva local. Las recargas de PayPal necesitan internet.
+
+Pruebas adicionales: `flutter test --no-pub test/offline_wallet_test.dart test/offline_wallet_screen_test.dart test/wallet_screen_test.dart`.
+
 ## Validación
 
 `flutter analyze --no-pub lib/main.dart lib/modo_offline lib/services/api_service.dart lib/services/auth_service.dart lib/services/food_vision_service.dart lib/screens/food lib/screens/home/home_screen.dart test/offline_copy_photo_test.dart`
