@@ -147,10 +147,8 @@ void main() {
       offline = false;
       expect(await api.get('/plans/my-plan'), isNull);
       offline = true;
-      await expectLater(
-        api.get('/plans/my-plan'),
-        throwsA(isA<ApiException>()),
-      );
+      // An explicitly revoked plan remains absent offline; never restore the old plan.
+      expect(await api.get('/plans/my-plan'), isNull);
       api.currentUserId = 'b';
       await expectLater(
         api.get('/plans/my-plan'),

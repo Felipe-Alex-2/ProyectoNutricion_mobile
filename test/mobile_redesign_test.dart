@@ -1,3 +1,6 @@
+import 'package:mobile/modo_offline/copia_offline_service.dart';
+import 'package:mobile/services/offline_carlitos_service.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -20,6 +23,7 @@ import 'package:mobile/screens/auth/register_screen.dart';
 import 'package:mobile/screens/auth/forgot_password_screen.dart';
 import 'package:mobile/screens/chat/carlitos_chat_screen.dart';
 import 'package:mobile/screens/food/food_vision_screen.dart';
+import 'package:mobile/widgets/nutrition_ui.dart';
 import 'package:mobile/screens/home/home_screen.dart';
 import 'package:mobile/screens/subscriptions/ai_module_screen.dart';
 import 'package:mobile/services/activity_log_service.dart';
@@ -74,6 +78,11 @@ class _Sync extends ChangeNotifier implements SincronizadorService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _OfflinePreview extends OfflineCarlitosService {
+  @override
+  Future<void> initialize() async {}
+}
+
 class _Session {
   final storage = StorageService();
   final theme = ThemeService();
@@ -81,6 +90,7 @@ class _Session {
   final sync = _Sync();
   final queue = ColaSincronizacionService();
   late final ApiService api;
+  late final CopiaOfflineService copia;
   late final _PreviewAuth auth;
   late final PatientService patients;
   late final RecipeService recipes;
@@ -172,6 +182,39 @@ class _Session {
               'instructions': 'Cocina la quinoa y mezcla con las verduras.',
             },
           ];
+        } else if (path.endsWith('/reports/mine')) {
+          data = {
+            'title': 'Mi alimentación',
+            'columns': [
+              {'key': 'description', 'label': 'Comida'},
+            ],
+            'rows': [
+              {'description': 'Mi almuerzo registrado'},
+            ],
+            'total_rows': 1,
+            'summary': '1 registros encontrados.',
+            'notes': [],
+          };
+        } else if (path.endsWith('/my-receipts')) {
+          data = [
+            {
+              'id': 'paid-visit',
+              'kind': 'CONSULTATION',
+              'concept': 'Consulta general',
+              'amount': 5,
+              'currency': 'USD',
+              'method': 'WALLET',
+              'buyer_name': 'Felipe',
+              'buyer_email': 'felipe@ejemplo.com',
+              'paid_at': now.toIso8601String(),
+              'reference': 'wallet-ref',
+              'pdf_path': '/payments/paid-visit/pdf',
+            },
+          ];
+        } else if (path.endsWith('/food/history')) {
+          data = [];
+        } else if (path.endsWith('/plans/my-plan')) {
+          data = null;
         } else if (path.endsWith('/unread-count')) {
           data = {'unread_count': 2};
         } else if (path.endsWith('/notifications')) {
@@ -233,6 +276,7 @@ class _Session {
         );
       }),
     )..currentUserId = 'preview-patient';
+    copia = CopiaOfflineService(api);
     auth = _PreviewAuth(api, storage);
     patients = PatientService(api);
     recipes = RecipeService(api);
@@ -240,7 +284,7 @@ class _Session {
     notifications = NotificationService(api);
     subscriptions = SubscriptionService(api, storage);
     health = AnamnesisService(api);
-    chat = CarlitosChatService(api);
+    chat = CarlitosChatService(api, offline: _OfflinePreview());
     food = FoodVisionService(api);
     activity = ActivityLogService(api);
   }
@@ -251,6 +295,8 @@ class _Session {
     double scale = 1,
   }) => MultiProvider(
     providers: [
+      Provider<ApiService>.value(value: api),
+      ChangeNotifierProvider<CopiaOfflineService>.value(value: copia),
       ChangeNotifierProvider<AuthService>.value(value: auth),
       ChangeNotifierProvider<ThemeService>.value(value: theme),
       ChangeNotifierProvider<PatientService>.value(value: patients),
@@ -287,6 +333,7 @@ class _Session {
 
   void dispose() {
     for (final service in [
+      copia,
       auth,
       theme,
       patients,
@@ -376,7 +423,7 @@ void main() {
         if (config.$1 == 390) {
           await _capture(tester, capture, '$prefix-04-inicio');
         }
-        await tester.tap(find.byTooltip('Notificaciones'));
+        await tester.tap(find.byTooltip(RegExp(r'^Notificaciones')));
         await tester.pumpAndSettle();
         expect(find.text('Hoy'), findsOneWidget);
         expect(find.text('Ayer'), findsOneWidget);
@@ -423,13 +470,18 @@ void main() {
         await tester.ensureVisible(find.text('Mis comprobantes'));
         await tester.tap(find.text('Mis comprobantes'));
         await tester.pumpAndSettle();
-        expect(find.text('Ver recibo'), findsOneWidget);
-        expect(find.text('Descargar PDF'), findsOneWidget);
+        expect(find.text('Ver recibo detallado'), findsOneWidget);
+        await tester.tap(find.text('Ver recibo detallado'));
+        await tester.pumpAndSettle();
+        expect(find.text('Descargar recibo PDF'), findsOneWidget);
         if (config.$1 == 390) {
           await _capture(tester, capture, '$prefix-11-comprobantes');
         }
         await tester.pageBack();
         await tester.pumpAndSettle();
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Mi ficha de salud'));
         await tester.tap(find.text('Mi ficha de salud'));
         await tester.pumpAndSettle();
         expect(find.text('Datos personales'), findsOneWidget);
@@ -481,6 +533,56 @@ void main() {
       await tester.tap(find.byType(NavigationDestination).at(2));
       await tester.pumpAndSettle();
       expect(find.text('Tu plan gratuito'), findsOneWidget);
+      for (final title in ['Alimentación y fotos IA', 'Mis reportes']) {
+        final card = find
+            .ancestor(
+              of: find.text(title).first,
+              matching: find.byType(NutritionCard),
+            )
+            .first;
+        expect(
+          find.descendant(
+            of: card,
+            matching: find.byIcon(Icons.lock_outline_rounded),
+          ),
+          findsNothing,
+        );
+      }
+      await tester.ensureVisible(find.text('Mis reportes'));
+      await tester.tap(find.text('Mis reportes'));
+      await tester.pumpAndSettle();
+      expect(find.text('Mi almuerzo registrado'), findsOneWidget);
+      expect(find.text('Descargar PDF'), findsOneWidget);
+      expect(find.text('Descargar Excel'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Alimentación y fotos IA').first);
+      await tester.tap(find.text('Alimentación y fotos IA').first);
+      await tester.pumpAndSettle();
+      final photo = find.text('Registrar con foto e IA');
+      await tester.ensureVisible(photo);
+      await tester.pumpAndSettle();
+      await tester.tap(photo);
+      await tester.pumpAndSettle();
+      expect(find.byType(FoodVisionScreen), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Mis comprobantes de pago'));
+      await tester.tap(find.text('Mis comprobantes de pago'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ver recibo detallado'));
+      await tester.pumpAndSettle();
+      expect(find.text('Total pagado: 5.00 USD'), findsOneWidget);
+      expect(find.text('Método: WALLET'), findsOneWidget);
+      expect(find.text('Cliente: Felipe'), findsOneWidget);
+      expect(find.text('Referencia: wallet-ref'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
       await _capture(tester, capture, 'claro-premium-gratuito');
       expect(
         session.requests.where(

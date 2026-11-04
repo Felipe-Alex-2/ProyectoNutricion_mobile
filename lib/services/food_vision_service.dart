@@ -1,4 +1,11 @@
+import 'dart:convert';
+import 'dart:math';
+
+import '../modo_offline/cola_sincronizacion_service.dart';
+import '../modo_offline/elemento_cola.dart';
+
 import 'package:flutter/foundation.dart';
+
 import 'api_service.dart';
 
 class DetectedFoodItem {
@@ -71,7 +78,9 @@ class FoodAnalysisResult {
 
     return FoodAnalysisResult(
       recordId: json['record_id'] as String?,
-      alimentos: list.map((a) => DetectedFoodItem.fromJson(a as Map<String, dynamic>)).toList(),
+      alimentos: list
+          .map((a) => DetectedFoodItem.fromJson(a as Map<String, dynamic>))
+          .toList(),
       totalCalorias: (total['calorias'] as num?)?.toDouble() ?? 0.0,
       totalCarbs: (total['carbohidratos_g'] as num?)?.toDouble() ?? 0.0,
       totalProteinas: (total['proteinas_g'] as num?)?.toDouble() ?? 0.0,
@@ -95,25 +104,42 @@ class FoodVisionService extends ChangeNotifier {
   FoodAnalysisResult? _lastAnalysis;
   final List<FoodAnalysisResult> _history = [];
 
-  FoodVisionService(this._apiService);
+  final ColaSincronizacionService? colaService;
+  bool wasQueued = false;
+  FoodVisionService(this._apiService, {this.colaService});
 
   bool get isAnalyzing => _isAnalyzing;
   String? get errorMessage => _errorMessage;
   FoodAnalysisResult? get lastAnalysis => _lastAnalysis;
   List<FoodAnalysisResult> get history => _history;
 
-  Future<FoodAnalysisResult?> analyzeImage(Uint8List imageBytes, String filename) async {
+  Future<FoodAnalysisResult?> analyzeImage(
+    Uint8List imageBytes,
+    String filename,
+  ) async {
+    final owner = _apiService.currentUserId;
+    final operationId =
+        'photo_${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}';
+    wasQueued = false;
+    _lastAnalysis = null;
     _isAnalyzing = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      if (_apiService.conectividadService?.estaConectado == false) {
+        throw ApiException('Sin conexión', statusCode: 0);
+      }
       final response = await _apiService.postMultipart(
         '/food/analyze',
         fileBytes: imageBytes,
         filename: filename,
+        idempotencyKey: operationId,
       );
 
+      if (owner != _apiService.currentUserId) {
+        throw ApiException("La cuenta cambió", statusCode: 401);
+      }
       if (response != null && response is Map<String, dynamic>) {
         _lastAnalysis = FoodAnalysisResult.fromJson(response);
         _isAnalyzing = false;
@@ -122,6 +148,49 @@ class FoodVisionService extends ChangeNotifier {
       }
       throw Exception('Formato de respuesta inválido del servidor');
     } catch (e) {
+      if (e is ApiException &&
+          e.statusCode == 0 &&
+          owner != null &&
+          owner == _apiService.currentUserId &&
+          colaService != null) {
+        try {
+          if (imageBytes.length > 10 * 1024 * 1024) {
+            throw Exception('La imagen no debe superar 10 MB.');
+          }
+          final photos = colaService!.elementos
+              .where((e) => e.tipoAccion == 'REGISTRAR_FOTO')
+              .length;
+          if (photos >= 10) {
+            throw Exception(
+              'Sincroniza tus 10 fotos pendientes antes de agregar otra.',
+            );
+          }
+          await colaService!.encolar(
+            ElementoCola(
+              id: operationId,
+              userId: owner,
+              metodo: 'POST',
+              endpoint: '/food/analyze',
+              tipoAccion: 'REGISTRAR_FOTO',
+              descripcionHumana: 'Foto de alimentación: $filename',
+              fechaCreacion: DateTime.now(),
+              cuerpo: {
+                'filename': filename,
+                'image_base64': base64Encode(imageBytes),
+              },
+            ),
+          );
+          wasQueued = true;
+          _isAnalyzing = false;
+          notifyListeners();
+          return null;
+        } catch (storageError) {
+          _errorMessage = 'No se pudo guardar la foto: $storageError';
+          _isAnalyzing = false;
+          notifyListeners();
+          return null;
+        }
+      }
       _errorMessage = e.toString().replaceAll('Exception:', '').trim();
       _isAnalyzing = false;
       notifyListeners();
@@ -131,6 +200,7 @@ class FoodVisionService extends ChangeNotifier {
 
   void clearLastAnalysis() {
     _lastAnalysis = null;
+    wasQueued = false;
     _errorMessage = null;
     notifyListeners();
   }

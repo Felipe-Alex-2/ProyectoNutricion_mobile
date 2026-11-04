@@ -43,6 +43,8 @@ dependencies:
   connectivity_plus: ^7.3.2
   printing: ^5.15.1
   flutter_file_dialog: ^3.3.3
+  llamadart: 0.17.5
+  crypto: ^3.0.7
   firebase_core: ^4.2.1
   firebase_messaging: ^16.0.4
   flutter_local_notifications: ^22.3.3
@@ -115,3 +117,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+hooks:
+  user_defines:
+    llamadart:
+      llamadart_native_runtimes: [llama_cpp]

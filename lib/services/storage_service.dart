@@ -6,6 +6,11 @@ class StorageService {
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
 
+  Future<String?> readCarlitosHistory(String userId) =>
+      _storage.read(key: 'carlitos_history_$userId');
+  Future<void> writeCarlitosHistory(String userId, String data) =>
+      _storage.write(key: 'carlitos_history_$userId', value: data);
+
   Future<void> saveTokens({
     required String accessToken,
     required String refreshToken,
@@ -23,7 +28,8 @@ class StorageService {
   }
 
   Future<String?> getCurrentUserId() => _storage.read(key: "current_user_id");
-  Future<void> saveCurrentUserId(String userId) => _storage.write(key: "current_user_id", value: userId);
+  Future<void> saveCurrentUserId(String userId) =>
+      _storage.write(key: "current_user_id", value: userId);
 
   Future<void> clearTokens() async {
     await _storage.delete(key: "current_user_id");
@@ -66,11 +72,7 @@ class StorageService {
     final status = await _storage.read(key: 'sub_${userId}_status');
     final expires = await _storage.read(key: 'sub_${userId}_expires');
     final order = await _storage.read(key: 'sub_${userId}_order');
-    return {
-      'status': status,
-      'expires': expires,
-      'order': order,
-    };
+    return {'status': status, 'expires': expires, 'order': order};
   }
 
   Future<void> clearLocalSubscription({String? userId}) async {

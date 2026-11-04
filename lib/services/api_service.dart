@@ -131,6 +131,7 @@ class ApiService {
     String endpoint, {
     bool includeAuth = true,
     bool usarCache = true,
+    bool forceRefresh = false,
   }) async {
     final owner = currentUserId;
     final cacheAllowed =
@@ -138,7 +139,9 @@ class ApiService {
         (!includeAuth || owner != null) &&
         !endpoint.startsWith('/subscriptions/');
     try {
-      if (conectividadService?.estaConectado == false && cacheAllowed) {
+      if (!forceRefresh &&
+          conectividadService?.estaConectado == false &&
+          cacheAllowed) {
         final cached = await cacheService?.obtener(
           endpoint,
           userId: owner,
@@ -150,7 +153,13 @@ class ApiService {
             statusCode: 401,
           );
         }
-        if (cached != null) return cached;
+        if (cached != null ||
+            await cacheService?.contiene(endpoint, userId: owner) == true) {
+          if (owner != currentUserId) {
+            throw ApiException('La cuenta cambió.', statusCode: 401);
+          }
+          return cached;
+        }
         throw ApiException(
           'Sin conexión. Abre esta sección con internet para descargar su información.',
           statusCode: 0,
@@ -165,22 +174,31 @@ class ApiService {
       }
       return result;
     } on ApiException catch (error) {
-      if (error.statusCode == 0 && cacheAllowed) {
+      if (cacheAllowed &&
+          (error.statusCode == 403 || error.statusCode == 404)) {
+        await cacheService?.eliminar(endpoint, userId: owner);
+      }
+      if (!forceRefresh && error.statusCode == 0 && cacheAllowed) {
         final cached = await cacheService?.obtener(
           endpoint,
           userId: owner,
           duracionValidez: _nutritionCacheAge(endpoint),
         );
-        if (cached != null && owner == currentUserId) return cached;
+        if (owner == currentUserId &&
+            (cached != null ||
+                await cacheService?.contiene(endpoint, userId: owner) ==
+                    true)) {
+          if (owner != currentUserId) {
+            throw ApiException('La cuenta cambió.', statusCode: 401);
+          }
+          return cached;
+        }
       }
       rethrow;
     }
   }
 
-  Duration? _nutritionCacheAge(String endpoint) =>
-      endpoint == '/plans/my-plan' || endpoint == '/food/history'
-      ? const Duration(days: 30)
-      : null;
+  Duration? _nutritionCacheAge(String endpoint) => const Duration(days: 30);
 
   Future<dynamic> _write(
     String method,
@@ -236,9 +254,11 @@ class ApiService {
     required String filename,
     String fieldName = 'file',
     bool includeAuth = true,
+    String? idempotencyKey,
   }) {
     return _send((headers) async {
       final request = http.MultipartRequest('POST', _url(endpoint));
+      if (idempotencyKey != null) headers['Idempotency-Key'] = idempotencyKey;
       request.headers.addAll(headers..remove('Content-Type'));
       request.files.add(
         http.MultipartFile.fromBytes(fieldName, fileBytes, filename: filename),

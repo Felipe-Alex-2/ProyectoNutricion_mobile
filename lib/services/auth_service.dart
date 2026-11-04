@@ -67,6 +67,7 @@ class AuthService extends ChangeNotifier {
         final cached = await cacheService?.obtener(
           '/users/me',
           userId: _apiService.currentUserId,
+          duracionValidez: const Duration(days: 30),
         );
         if (cached != null) {
           _currentUser = User.fromJson(cached);

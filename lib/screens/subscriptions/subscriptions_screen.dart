@@ -12,7 +12,9 @@ import '../../services/subscription_service.dart';
 import '../../services/theme_service.dart';
 import 'ai_module_screen.dart';
 import '../chat/carlitos_chat_screen.dart';
-import '../food/food_vision_screen.dart';
+import '../food/nutrition_diary_screen.dart';
+import '../reports/personal_reports_screen.dart';
+import '../payments/payment_receipts_screen.dart';
 import '../../modo_offline/conectividad_service.dart';
 
 class SubscriptionsScreen extends StatefulWidget {
@@ -669,6 +671,45 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               subtitle: 'Tu bienestar, con más herramientas.',
             ),
             const SizedBox(height: 24),
+            Text(
+              'Para todas las cuentas',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            _module(
+              Icons.restaurant_menu_outlined,
+              'Alimentación y fotos IA',
+              'Registra tus comidas, analiza fotografías y consulta tu historial.',
+              true,
+              () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NutritionDiaryScreen()),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _module(
+              Icons.bar_chart_outlined,
+              'Mis reportes',
+              'Consulta tus registros y descarga reportes en PDF o Excel.',
+              true,
+              () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const PersonalReportsScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _module(
+              Icons.receipt_long_outlined,
+              'Mis comprobantes de pago',
+              'Un recibo detallado para cada consulta, recarga o suscripción.',
+              true,
+              () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const PaymentReceiptsScreen(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
             if (service.isRefreshing) ...[
               const LinearProgressIndicator(),
               const SizedBox(height: 12),
@@ -783,16 +824,6 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              _module(
-                Icons.photo_camera_outlined,
-                'Análisis de alimentos',
-                'Estima nutrientes a partir de una fotografía.',
-                premium,
-                () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const FoodVisionScreen()),
-                ),
-              ),
-              const SizedBox(height: 24),
               if (!premium) ...[
                 NutritionCard(
                   child: Column(
@@ -815,7 +846,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                       ),
                       const SizedBox(height: 18),
                       const Text(
-                        'Incluye Carlitos y análisis de alimentos. El generador de menús está en desarrollo.',
+                        'Acceso a Carlitos IA durante 30 días. Alimentación, fotos IA y reportes están disponibles para todas las cuentas.',
                       ),
                       const SizedBox(height: 20),
                       SizedBox(
@@ -847,6 +878,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                         'Vinculación con tu nutricionista',
                         'Solicitud de citas',
                         'Plan nutricional asignado',
+                        'Alimentación y fotos IA',
+                        'Reportes personales en PDF y Excel',
                       ])
                         ListTile(
                           dense: true,
@@ -862,7 +895,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 ),
               const SizedBox(height: 24),
             ],
-            const SubscriptionReceiptsSection(showLatestOnly: true),
+            const SubscriptionReceiptsSection(),
             const SizedBox(height: 20),
           ],
         ),

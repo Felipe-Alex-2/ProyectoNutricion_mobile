@@ -1,3 +1,6 @@
+import 'modo_offline/copia_offline_service.dart';
+import 'modo_offline/widgets/banner_sin_conexion.dart';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -40,6 +43,8 @@ Future<void> main() async {
     cacheService: cacheLocalService,
     conectividadService: conectividadService,
   );
+
+  final copiaOffline = CopiaOfflineService(apiService);
 
   final authService = AuthService(
     apiService,
@@ -86,8 +91,15 @@ Future<void> main() async {
   await pushService.initialize();
   authService.beforeLogout = pushService.unlink;
   final subscriptionService = SubscriptionService(apiService, storageService);
-  final carlitosChatService = CarlitosChatService(apiService);
-  final foodVisionService = FoodVisionService(apiService);
+  final carlitosChatService = CarlitosChatService(
+    apiService,
+    storage: storageService,
+    canUseOffline: () => subscriptionService.isPremium,
+  );
+  final foodVisionService = FoodVisionService(
+    apiService,
+    colaService: colaService,
+  );
   final aiPlanMobileService = AIPlanMobileService(apiService);
 
   // Sincronizar identificador de usuario con almacenamiento local
@@ -99,12 +111,14 @@ Future<void> main() async {
     anamnesisService.currentUserId = userId;
     if (loadedUserId == userId) return;
     loadedUserId = userId;
+    copiaOffline.bindUser(userId);
     pushService.bindUser(userId);
     patientService.reset();
     recipeService.reset();
     appointmentService.reset();
     anamnesisService.reset();
     notificationService.reset();
+    carlitosChatService.reset();
     subscriptionService.reset();
     aiPlanMobileService.reset();
     foodVisionService.clearLastAnalysis();
@@ -113,9 +127,7 @@ Future<void> main() async {
         if (apiService.currentUserId != userId) return;
         appointmentService.fetchAppointments();
         anamnesisService.fetchMyAnamnesis();
-        // Download account-scoped nutrition data for the next offline session.
-        apiService.get('/plans/my-plan').catchError((_) => null);
-        apiService.get('/food/history').catchError((_) => null);
+        appointmentService.fetchNutritionists();
       });
     }
   });
@@ -123,6 +135,7 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider<CopiaOfflineService>.value(value: copiaOffline),
         Provider<StorageService>.value(value: storageService),
         ChangeNotifierProvider<ConectividadService>.value(
           value: conectividadService,
@@ -181,6 +194,32 @@ class MyApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeService.themeMode,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        final showBanner =
+            context.watch<AuthService>().status == AuthStatus.authenticated &&
+            (!context.watch<ConectividadService>().estaConectado ||
+                context
+                    .watch<ColaSincronizacionService>()
+                    .elementos
+                    .isNotEmpty ||
+                context.watch<SincronizadorService>().estaSincronizando);
+        return Column(
+          children: [
+            if (showBanner)
+              const SafeArea(
+                bottom: false,
+                child: Material(child: BannerSinConexion()),
+              ),
+            Expanded(
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: showBanner,
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
+          ],
+        );
+      },
       home: const AuthGate(),
     );
   }

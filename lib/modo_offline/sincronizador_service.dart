@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -107,11 +108,25 @@ class SincronizadorService extends ChangeNotifier {
 
         try {
           if (elemento.metodo == 'POST') {
-            await apiService.post(
-              elemento.endpoint,
-              body: elemento.cuerpo,
-              idempotencyKey: elemento.id,
-            );
+            if (elemento.tipoAccion == 'REGISTRAR_FOTO') {
+              await apiService.postMultipart(
+                elemento.endpoint,
+                fileBytes: base64Decode(
+                  elemento.cuerpo!['image_base64'] as String,
+                ),
+                filename: elemento.cuerpo!['filename'] as String,
+                idempotencyKey: elemento.id,
+              );
+              onAlimentacionActualizada?.call();
+              _ultimoMensajeExito =
+                  'Foto de alimentación sincronizada y analizada.';
+            } else {
+              await apiService.post(
+                elemento.endpoint,
+                body: elemento.cuerpo,
+                idempotencyKey: elemento.id,
+              );
+            }
 
             if (elemento.tipoAccion == 'REGISTRAR_ALIMENTACION') {
               _ultimoMensajeExito = 'Registro de alimentación sincronizado.';

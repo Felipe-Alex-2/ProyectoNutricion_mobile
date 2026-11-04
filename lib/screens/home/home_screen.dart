@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import '../payments/wallet_screen.dart';
+import '../payments/payment_receipts_screen.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
-import '../subscriptions/subscription_receipts_section.dart';
 import '../../widgets/nutrition_ui.dart';
 import 'widgets/nutrition_recipe_card.dart';
 
@@ -25,7 +25,7 @@ import '../anamnesis/anamnesis_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../subscriptions/subscriptions_screen.dart';
 import '../chat/carlitos_chat_screen.dart';
-import '../../modo_offline/widgets/banner_sin_conexion.dart';
+import '../../modo_offline/widgets/copia_offline_card.dart';
 import '../../modo_offline/conectividad_service.dart';
 import '../food/nutrition_diary_screen.dart';
 
@@ -205,7 +205,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           children: [
             Column(
               children: [
-                const BannerSinConexion(),
                 Expanded(
                   child: _buildSelectedTab(
                     authService: authService,
@@ -1037,9 +1036,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   const SizedBox(height: 12),
                   FilledButton.icon(
                     icon: const Icon(Icons.payments_outlined),
-                    label: const Text(
-                      'Elegir pago · USD 5',
-                    ),
+                    label: const Text('Elegir pago · USD 5'),
                     onPressed: () async {
                       await Navigator.of(context).push(
                         MaterialPageRoute(
@@ -2191,6 +2188,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const NutritionHeading('Perfil'),
+          const CopiaOfflineCard(),
           const SizedBox(height: 16),
           NutritionCard(
             child: ListTile(
@@ -2201,6 +2199,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               onTap: () => Navigator.of(
                 context,
               ).push(MaterialPageRoute(builder: (_) => const WalletScreen())),
+            ),
+          ),
+          const SizedBox(height: 12),
+          NutritionCard(
+            child: ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: const Text('Mis comprobantes'),
+              subtitle: const Text('Un recibo por cada pago confirmado'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const PaymentReceiptsScreen(),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 28),
@@ -2327,17 +2339,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   title: const Text('Notificaciones'),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: _openNotifications,
-                ),
-                const Divider(indent: 56, endIndent: 12),
-                ListTile(
-                  leading: const Icon(Icons.receipt_long_outlined),
-                  title: const Text('Mis comprobantes'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SubscriptionReceiptsScreen(),
-                    ),
-                  ),
                 ),
               ],
             ),

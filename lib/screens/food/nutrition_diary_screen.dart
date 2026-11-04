@@ -175,13 +175,16 @@ class _NutritionDiaryScreenState extends State<NutritionDiaryScreen> {
     final user = context.read<ApiService>().currentUserId;
     final pending = queue.elementos
         .where(
-          (e) => e.userId == user && e.tipoAccion == 'REGISTRAR_ALIMENTACION',
+          (e) =>
+              e.userId == user &&
+              (e.tipoAccion == 'REGISTRAR_ALIMENTACION' ||
+                  e.tipoAccion == 'REGISTRAR_FOTO'),
         )
         .toList();
     final meals = (_plan?['meals'] as List?) ?? [];
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mi nutrición'),
+        title: const Text('Alimentación y fotos IA'),
         actions: [
           IconButton(
             onPressed: _load,
@@ -321,20 +324,18 @@ class _NutritionDiaryScreenState extends State<NutritionDiaryScreen> {
                           ),
                           const SizedBox(height: 8),
                           OutlinedButton.icon(
-                            onPressed: connected
-                                ? () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => const FoodVisionScreen(),
-                                    ),
-                                  ).then((_) => _load())
-                                : null,
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (_) => const FoodVisionScreen(),
+                              ),
+                            ).then((_) => _load()),
                             icon: const Icon(Icons.camera_alt_outlined),
                             label: const Text('Registrar con foto e IA'),
                           ),
                           if (!connected)
                             const Text(
-                              'El análisis de fotos requiere internet. Puedes describir tu comida aquí.',
+                              'Puedes guardar la foto pendiente; la IA la analizará cuando vuelva internet.',
                             ),
                         ],
                       ),

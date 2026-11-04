@@ -18,6 +18,7 @@ class CarlitosChatScreen extends StatefulWidget {
 class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  CarlitosChatService? _chatService;
 
   final List<String> _quickSuggestions = [
     '¿Qué snack saludable puedo comer?',
@@ -31,13 +32,15 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && context.read<SubscriptionService>().isPremium) {
-        context.read<CarlitosChatService>().fetchHistory();
+        _chatService = context.read<CarlitosChatService>();
+        _chatService!.fetchHistory();
       }
     });
   }
 
   @override
   void dispose() {
+    _chatService?.offline.release();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -65,10 +68,43 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
     _scrollToBottom();
 
     if (!ok && mounted && service.errorMessage != null) {
+      if (_textController.text.isEmpty) _textController.text = text;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(service.errorMessage!),
           backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  Future<void> _prepareOffline() async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Preparar Carlitos sin internet'),
+        content: const Text(
+          'Se descargará un modelo de aproximadamente 492 MB y quedará guardado en este teléfono. Usa Wi-Fi si prefieres evitar consumo de datos. Después podrás conversar sin internet. El rendimiento depende del dispositivo.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Ahora no'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Descargar modelo'),
+          ),
+        ],
+      ),
+    );
+    if (accepted != true || !mounted) return;
+    final service = context.read<CarlitosChatService>();
+    final ok = await service.offline.download();
+    if (mounted && ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Carlitos está preparado para responder sin internet.'),
         ),
       );
     }
@@ -280,36 +316,38 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
           IconButton(
             icon: const Icon(Icons.delete_outline_rounded),
             tooltip: 'Borrar historial',
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Limpiar Chat'),
-                  content: const Text(
-                    '¿Deseas vaciar los mensajes con Carlitos?',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Cancelar'),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.accentCoral,
+            onPressed: chatService.isLoading
+                ? null
+                : () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Limpiar Chat'),
+                        content: const Text(
+                          '¿Deseas vaciar los mensajes con Carlitos?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancelar'),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.accentCoral,
+                            ),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text(
+                              'Vaciar',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
                       ),
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text(
-                        'Vaciar',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-              if (confirm == true) {
-                await chatService.clearHistory();
-              }
-            },
+                    );
+                    if (confirm == true) {
+                      await chatService.clearHistory();
+                    }
+                  },
           ),
         ],
       ),
@@ -317,10 +355,62 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
         bottom: true,
         child: Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (chatService.offline.isDownloading) ...[
+                    LinearProgressIndicator(
+                      value: chatService.offline.progress,
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Descargando Carlitos: ${(chatService.offline.progress * 100).toStringAsFixed(0)}%',
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: chatService.offline.cancelDownload,
+                          child: const Text('Cancelar'),
+                        ),
+                      ],
+                    ),
+                  ] else if (chatService.offline.isReady)
+                    const Text(
+                      'Modo sin internet preparado en este teléfono.',
+                      style: TextStyle(fontSize: 12),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed:
+                          chatService.isLoading ||
+                              !context
+                                  .watch<ConectividadService>()
+                                  .estaConectado
+                          ? null
+                          : _prepareOffline,
+                      icon: const Icon(Icons.download_outlined),
+                      label: const Text('Preparar modo sin internet'),
+                    ),
+                  if (chatService.offline.error != null)
+                    Text(
+                      chatService.offline.error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
+              ),
+            ),
             // Banner de estado (online vs offline local)
             Builder(
               builder: (ctx) {
-                final conectado = ctx.watch<ConectividadService>().estaConectado;
+                final conectado = ctx
+                    .watch<ConectividadService>()
+                    .estaConectado;
                 if (!conectado) {
                   return Container(
                     padding: const EdgeInsets.symmetric(
@@ -338,7 +428,9 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Modo Asistente Offline: Carlitos responderá usando el motor local de nutrición.',
+                            chatService.offline.isReady
+                                ? 'Sin internet: las respuestas se generan en tu teléfono. No se consulta tu ficha clínica.'
+                                : 'Sin internet. Descarga el modelo cuando recuperes conexión para conversar con Carlitos.',
                             style: TextStyle(
                               fontSize: 11.5,
                               color: Colors.amber.shade800,
@@ -417,7 +509,7 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Conozco tus objetivos y alergias registradas en tu ficha. Pregúntame sobre alimentos, dudas de tu plan o alternativas saludables.',
+                              'Pregúntame sobre alimentación y hábitos. Con internet puedo consultar tu perfil; sin conexión doy orientación general con el modelo descargado.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 13,
@@ -514,12 +606,16 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                                         ),
                                       ),
                                       const SizedBox(width: 4),
-                                      Text(
-                                        'Carlitos',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                          color: primaryGreen,
+                                      Flexible(
+                                        child: Text(
+                                          msg.source == 'LOCAL'
+                                              ? 'Carlitos · En tu teléfono'
+                                              : 'Carlitos',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: primaryGreen,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -586,6 +682,7 @@ class _CarlitosChatScreenState extends State<CarlitosChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: _textController,
+                      maxLength: 1000,
                       style: TextStyle(color: textPrimary, fontSize: 14),
                       decoration: InputDecoration(
                         hintText: 'Escribe tu pregunta…',
