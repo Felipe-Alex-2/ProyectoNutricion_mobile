@@ -119,6 +119,21 @@ class ApiService {
     }
   }
 
+  Future<Uint8List> postBytes(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    return await _send(
+      (headers) => _client.post(
+        _url(endpoint),
+        headers: headers,
+        body: jsonEncode(body),
+      ),
+      true,
+      binary: true,
+    ) as Uint8List;
+  }
+
   Future<Uint8List> getBytes(String endpoint) async {
     return await _send(
       (headers) => _client.get(_url(endpoint), headers: headers),
