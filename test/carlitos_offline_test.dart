@@ -1,4 +1,7 @@
 import 'dart:async';
+
+import 'package:mobile/modo_offline/cache_local_service.dart';
+
 import 'dart:io';
 import 'dart:convert';
 
@@ -28,11 +31,13 @@ class Connection extends ConectividadService {
 
 class LocalRuntime implements CarlitosLocalRuntime {
   int calls = 0;
+  List<Map<String, String>> received = [];
   final Completer<void> started = Completer<void>();
   Completer<String>? pending;
   @override
   Future<String> reply(String path, List<Map<String, String>> messages) async {
     calls++;
+    received = messages;
     expect(File(path).readAsBytesSync(), [71, 71, 85, 70]);
     expect(messages.first['role'], 'system');
     if (!started.isCompleted) started.complete();
@@ -174,6 +179,62 @@ void main() {
       connection.dispose();
     },
   );
+  test('Offline context follows the current account and prevents sugary soda advice for fat loss', () async {
+    final runtime = LocalRuntime();
+    final offline = local(runtime);
+    await offline.download();
+    final cache = CacheLocalService();
+    await cache.guardar('/clinical/anamnesis/me', {
+      'patient_id': 'owner',
+      'goal': 'Pérdida de grasa',
+      'allergies': 'Maní',
+      'pathologies': 'Hipertensión',
+    }, userId: 'owner');
+    await cache.guardar('/plans/my-plan', {
+      'patient_id': 'owner',
+      'status': 'APPROVED',
+      'title': 'Mi plan aprobado',
+    }, userId: 'owner');
+    final connection = Connection(false);
+    final api = ApiService(
+      StorageService(),
+      cacheService: cache,
+      conectividadService: connection,
+    )..currentUserId = 'owner';
+    final chat = CarlitosChatService(
+      api,
+      offline: offline,
+      canUseOffline: () => true,
+    );
+    expect(await chat.sendMessage('¿Me recomiendas tomar soda?'), isTrue);
+    expect(runtime.received.first['content'], contains('Maní'));
+    expect(runtime.received.first['content'], contains('Hipertensión'));
+    expect(runtime.received.first['content'], contains('Mi plan aprobado'));
+    expect(
+      chat.messages.last.content,
+      contains('agua en lugar de gaseosas azucaradas'),
+    );
+    await cache.guardar('/clinical/anamnesis/me', {
+      'patient_id': 'owner',
+      'goal': 'Ganancia muscular',
+    }, userId: 'owner');
+    expect(await chat.sendMessage('Dame una idea'), isTrue);
+    expect(runtime.received.first['content'], contains('Ganancia muscular'));
+    expect(runtime.received.first['content'], isNot(contains('Hipertensión')));
+    api.currentUserId = 'other';
+    expect(await chat.sendMessage('Dame una idea'), isTrue);
+    expect(
+      runtime.received.first['content'],
+      isNot(contains('Ganancia muscular')),
+    );
+    expect(
+      runtime.received.first['content'],
+      isNot(contains('Mi plan aprobado')),
+    );
+    chat.dispose();
+    api.dispose();
+    connection.dispose();
+  });
   test('Missing model does not invent an offline response', () async {
     final connection = Connection(false);
     final runtime = LocalRuntime();

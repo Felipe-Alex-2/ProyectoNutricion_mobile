@@ -27,3 +27,5 @@ Pruebas adicionales: `flutter test --no-pub test/offline_wallet_test.dart test/o
 `flutter test --no-pub test/offline_copy_photo_test.dart test/nutrition_diary_test.dart test/nutrition_diary_screen_test.dart test/api_security_test.dart`
 
 Probar en un teléfono: iniciar sesión, esperar la copia, activar modo avión, abrir el plan, solicitar una cita futura y tomar una foto. Cerrar y reabrir la app, revisar el contador, desactivar modo avión y comprobar la sincronización. Una respuesta perdida debe reutilizar el mismo identificador, sin duplicar registros.
+
+Carlitos offline utiliza la anamnesis y el plan aprobado de la última copia cifrada de la cuenta actual (hasta 30 días). Lee los datos en cada consulta y también permite usar una ficha editada localmente pendiente de sincronización. Si no están descargados o vencieron, no inventa un perfil. El modelo recibe objetivo, alergias, antecedentes y preferencias; el caso de gaseosas azucaradas con pérdida de grasa/peso usa una respuesta controlada. El modelo pequeño local puede cometer errores y no tiene la misma capacidad que el servicio online. Actualizar la copia desde Perfil después de cambios del nutricionista.

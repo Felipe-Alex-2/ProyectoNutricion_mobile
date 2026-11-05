@@ -215,8 +215,28 @@ class CarlitosChatService extends ChangeNotifier {
           'Carlitos necesita una suscripción Premium vigente verificada en esta cuenta.',
         );
       }
+      final cachedProfile = await _apiService.cacheService?.obtener(
+        '/clinical/anamnesis/me',
+        userId: owner,
+        duracionValidez: const Duration(days: 30),
+      );
+      final cachedPlan = await _apiService.cacheService?.obtener(
+        '/plans/my-plan',
+        userId: owner,
+        duracionValidez: const Duration(days: 30),
+      );
+      if (!_current(owner, generation)) return false;
+      Map<String, dynamic>? owned(dynamic data) {
+        if (data is! Map ||
+            (data['patient_id'] != null && data['patient_id'] != owner))
+          return null;
+        return Map<String, dynamic>.from(data);
+      }
+
       final answer = await offline.generate(
         _messages.map((m) => {'role': m.role, 'content': m.content}).toList(),
+        anamnesis: owned(cachedProfile),
+        approvedPlan: owned(cachedPlan),
       );
       if (!_current(owner, generation)) return false;
       final index = _messages.indexWhere((m) => m.id == question.id);
