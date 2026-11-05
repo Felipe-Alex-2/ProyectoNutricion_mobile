@@ -38,6 +38,7 @@ class ApiService {
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'X-Report-Client': 'mobile',
       if (token != null) 'Authorization': 'Bearer $token',
     };
   }
